@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Discharge Summary — {{ summary.patient_name or summary.patient_id }}</title>
+<style>
+  :root {
+    --navy:#12305c; --teal:#0f6e6e; --ink:#1c2431; --muted:#5d6b7f;
+    --line:#dde3ec; --bg:#f5f7fb;
+    --high:#b8202e; --high-bg:#fdecee; --low:#1c6b3f; --low-bg:#e9f6ee;
+    --mid:#8a5a00; --mid-bg:#fff6e2;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px; font:15px/1.65 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); background:var(--bg); }
+  .sheet { max-width:900px; margin:0 auto; background:#fff; border:1px solid var(--line);
+           border-radius:10px; overflow:hidden; }
+  header { background:linear-gradient(135deg,var(--navy),var(--teal)); color:#fff; padding:26px 30px; }
+  header h1 { margin:0 0 6px; font-size:23px; }
+  header .sub { opacity:.9; font-size:13.5px; }
+  .facts { display:flex; flex-wrap:wrap; gap:1px; background:var(--line); }
+  .facts > div { flex:1 1 160px; background:#fff; padding:13px 18px; }
+  .facts .k { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }
+  .facts .v { font-weight:600; margin-top:2px; }
+  section { padding:22px 30px; border-top:1px solid var(--line); }
+  h2 { margin:0 0 12px; font-size:16px; color:var(--navy); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { padding:9px 11px; border-bottom:1px solid var(--line); text-align:left; }
+  th { background:#f8fafc; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .pill { display:inline-block; padding:2px 10px; border-radius:11px; font-size:11px;
+          font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+  .Low { color:var(--low); background:var(--low-bg); }
+  .Medium { color:var(--mid); background:var(--mid-bg); }
+  .High { color:var(--high); background:var(--high-bg); }
+  .flag-HIGH, .flag-LOW, .flag-ABNORMAL, .flag-CRITICAL,
+  .flag-HOOG, .flag-ALTO, .flag-BAJO { color:var(--high); background:var(--high-bg); }
+  .flag-NORMAL, .flag-NORMAAL { color:var(--low); background:var(--low-bg); }
+  .prose { white-space:pre-wrap; }
+  .muted { color:var(--muted); font-size:13px; }
+  .callout { padding:13px 16px; border-left:4px solid var(--teal); background:#f2fafa;
+             border-radius:0 6px 6px 0; }
+  .warnbox { padding:13px 16px; border-left:4px solid var(--high); background:var(--high-bg);
+             border-radius:0 6px 6px 0; }
+  footer { padding:16px 30px; background:#fafbfd; border-top:1px solid var(--line);
+           font-size:11.5px; color:var(--muted); }
+  code { background:#f2f5f9; padding:1px 5px; border-radius:4px; font-size:12px; }
+  @media print { body { background:#fff; padding:0; } .sheet { border:0; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header>
+    <h1>Your Discharge Summary</h1>
+    <div class="sub">
+      {{ hospital }}
+      {% if summary.patient_name %}&middot; {{ summary.patient_name }}{% endif %}
+      &middot; Patient ID {{ summary.patient_id }}
+      &middot; prepared {{ summary.generated_at }}
+    </div>
+  </header>
+
+  <div class="facts">
+    <div><div class="k">Audience</div><div class="v">{{ summary.audience|title }}</div></div>
+    <div><div class="k">Risk level</div>
+         <div class="v"><span class="pill {{ summary.risk_level.value }}">{{ summary.risk_level.value }}</span></div></div>
+    {% if summary.bill_snapshot %}
+      <div><div class="k">Bill total</div>
+           <div class="v">
+             {% if summary.bill_snapshot.get('total_amount') is not none %}
+               {{ '%.2f'|format(summary.bill_snapshot.get('total_amount')) }}
+               {{ summary.bill_snapshot.get('currency') or '' }}
+             {% else %}&mdash;{% endif %}
+           </div></div>
+      <div><div class="k">Payment</div>
+           <div class="v">{{ summary.bill_snapshot.get('payment_status') or '—' }}</div></div>
+    {% endif %}
+  </div>
+
+  {% for section in summary.sections %}
+  <section>
+    <h2>{{ section.title }}</h2>
+    {% if section.key == 'warning_signs' %}
+      <div class="warnbox prose">{{ section.content }}</div>
+    {% elif section.key == 'follow_up' %}
+      <div class="callout prose">{{ section.content }}</div>
+    {% else %}
+      <div class="prose">{{ section.content }}</div>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  {% if summary.prescription_table %}
+  <section>
+    <h2>Your medicines</h2>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Medicine</th><th>Strength</th><th>How much</th>
+            <th>How often</th><th>How to take</th><th>For how long</th></tr>
+      </thead>
+      <tbody>
+      {% for row in summary.prescription_table %}
+        <tr>
+          <td>{{ row.get('sl_no') or loop.index }}</td>
+          <td><strong>{{ row.get('medicine_name') or '—' }}</strong></td>
+          <td>{{ row.get('strength') or '—' }}</td>
+          <td>{{ row.get('dosage') or '—' }}</td>
+          <td>{{ row.get('frequency_plain') or row.get('frequency') or '—' }}</td>
+          <td>{{ row.get('route_plain') or row.get('route') or '—' }}</td>
+          <td>{{ row.get('period') or '—' }}</td>
+        </tr>
+        {% if row.get('remarks') %}
+          <tr><td></td><td colspan="6" class="muted">{{ row.get('remarks') }}</td></tr>
+        {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if summary.lab_table %}
+  <section>
+    <h2>Your test results</h2>
+    <table>
+      <thead><tr><th>Test</th><th>Result</th><th>Units</th><th>Normal range</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for row in summary.lab_table %}
+        <tr>
+          <td>{{ row.get('test') }}</td>
+          <td><strong>{{ row.get('value') or '—' }}</strong></td>
+          <td>{{ row.get('unit') or '' }}</td>
+          <td class="muted">{{ row.get('reference_range') or '—' }}</td>
+          <td><span class="pill flag-{{ (row.get('flag') or 'NORMAL')|upper }}">
+            {{ row.get('flag') or 'NORMAL' }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if summary.bill_snapshot and summary.bill_snapshot.get('line_items') %}
+  <section>
+    <h2>Your bill</h2>
+    <table>
+      <thead><tr><th>Item</th><th style="text-align:right">Qty</th>
+                 <th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>
+      {% for item in summary.bill_snapshot.get('line_items') %}
+        <tr>
+          <td>{{ item.get('description') or item.get('item_code') }}</td>
+          <td style="text-align:right">{{ item.get('qty') or '' }}</td>
+          <td style="text-align:right">{{ item.get('unit_price') or '' }}</td>
+          <td style="text-align:right">{{ item.get('total') or '' }}</td>
+        </tr>
+      {% endfor %}
+        <tr>
+          <td colspan="3" style="text-align:right"><strong>Total</strong></td>
+          <td style="text-align:right"><strong>
+            {% if summary.bill_snapshot.get('total_amount') is not none %}
+              {{ '%.2f'|format(summary.bill_snapshot.get('total_amount')) }}
+              {{ summary.bill_snapshot.get('currency') or '' }}
+            {% else %}&mdash;{% endif %}
+          </strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted">Payment status: {{ summary.bill_snapshot.get('payment_status') or 'unknown' }}</p>
+  </section>
+  {% endif %}
+
+  <footer>
+    LangFuse trace <code>{{ summary.trace_id or 'n/a' }}</code>
+    {% if trace_url %}&middot; <a href="{{ trace_url }}">open trace</a>{% endif %}
+    <br>
+    Keep this summary and bring it to your follow-up appointments. If anything
+    here differs from what your care team told you, contact the hospital before
+    changing any medicine.
+  </footer>
+
+</div>
+</body>
+</html>

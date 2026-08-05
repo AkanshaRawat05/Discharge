@@ -1,0 +1,177 @@
+# =============================================================================
+#  rules.yaml  —  Single source of truth for clinical validation & risk scoring
+# =============================================================================
+#  Loaded by:  Completeness Agent, EHR Validation Agent, Reporting Agent.
+#  Versioning: every audit report stamps the SHA-256 of this file as
+#              `rules_version` for compliance reproducibility.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. Mandatory clinical fields  (used by Clinical Data Completeness Agent)
+# -----------------------------------------------------------------------------
+mandatory_clinical_fields:
+  - patient_id
+  - patient_name
+  - age
+  - gender
+  - address
+  - admission_date
+  - discharge_date
+  - ward
+  - bed_no
+  - attending_physician
+  - consulting_doctors
+  - discharge_diagnosis
+  - medications
+  - allergies
+  - follow_up_appointment
+  - discharge_instructions
+
+# Every discharge prescription row must populate these columns.
+# Validated by Clinical Data Completeness Agent; gaps trigger HITL.
+mandatory_prescription_fields:
+  - sl_no
+  - medicine_name
+  - strength
+  - dosage
+  - frequency
+  - route
+  - period
+  - remarks
+  - total_quantity
+
+# -----------------------------------------------------------------------------
+# 2. Normalization standards  (used by Translation & Normalization Agent)
+# -----------------------------------------------------------------------------
+normalization_standards:
+  abbreviation_map:
+    HTN: "Hypertension"
+    T2DM: "Type 2 Diabetes Mellitus"
+    DM2: "Type 2 Diabetes Mellitus"
+    CHF: "Congestive Heart Failure"
+    COPD: "Chronic Obstructive Pulmonary Disease"
+    MI: "Myocardial Infarction"
+    CAD: "Coronary Artery Disease"
+    CKD: "Chronic Kidney Disease"
+    UTI: "Urinary Tract Infection"
+    PNA: "Pneumonia"
+    SOB: "Shortness of Breath"
+    BP: "Blood Pressure"
+    HR: "Heart Rate"
+    RR: "Respiratory Rate"
+    Temp: "Temperature"
+    Hx: "History"
+    Rx: "Prescription"
+    Dx: "Diagnosis"
+    Tx: "Treatment"
+    PRN: "as needed"
+    BID: "twice daily"
+    TID: "three times daily"
+    QID: "four times daily"
+    QD: "once daily"
+    QHS: "at bedtime"
+
+  icd10_map:
+    "Type 2 Diabetes Mellitus": "E11.9"
+    "Hypertension": "I10"
+    "Congestive Heart Failure": "I50.9"
+    "Chronic Obstructive Pulmonary Disease": "J44.9"
+    "Myocardial Infarction": "I21.9"
+    "Asthma": "J45.909"
+    "Pneumonia": "J18.9"
+    "Acute Bronchitis": "J20.9"
+    "Coronary Artery Disease": "I25.10"
+
+  language_codes_supported: [en, es, hi, de, fr, nl]
+
+# -----------------------------------------------------------------------------
+# 3. Clinical validation policies
+# -----------------------------------------------------------------------------
+clinical_validation_policies:
+  abnormal_lab_requires_followup: true
+  high_risk_meds_need_counseling:
+    - Warfarin
+    - Insulin
+    - Methotrexate
+    - Digoxin
+    - Heparin
+  allergy_must_not_match_prescription: true
+  pediatric_always_hitl: true
+  obstetric_always_hitl: true
+  oncology_always_hitl: true
+
+# -----------------------------------------------------------------------------
+# 4. Risk scoring matrix
+# -----------------------------------------------------------------------------
+risk_scoring_matrix:
+  weights:
+    missing_mandatory_field: 3
+    missing_address: 1                 # soft demographic gap — low data-entry risk
+    missing_gender: 1                  # soft demographic gap — low data-entry risk
+    incomplete_prescription_fields: 4
+    medication_omission: 3
+    medication_added: 4
+    high_risk_med_missing_in_ehr: 9    # always escalates to High tier (pages pharmacist)
+    allergy_contradiction: 8           # always escalates
+    diagnosis_mismatch: 4
+    followup_missing: 2
+    abnormal_lab_unresolved: 3
+    low_translation_confidence: 3
+    high_risk_med_no_counseling: 4
+    bill_unpaid_with_discharge_ok: 5   # business: bill needs settlement before release
+  thresholds:
+    low_max: 2                         # auto-approve if score <= 2
+    medium_max: 8                      # standard HITL if <= 8; high (escalate) if > 8
+  hitl_hard_guardrails:
+    - allergy_contradiction
+    - high_risk_med_missing_in_ehr
+    - incomplete_prescription_fields
+    - translation_confidence_below_threshold
+    - rag_unsafe_response
+    - service_line_pediatric
+    - service_line_obstetric
+    - service_line_oncology
+
+# -----------------------------------------------------------------------------
+# 5. Translation / RAG quality thresholds
+# -----------------------------------------------------------------------------
+quality_thresholds:
+  translation_confidence_min: 0.70
+  rag_groundedness_min: 0.75
+  rag_relevance_min: 0.70
+  rag_safety_required: true
+
+# -----------------------------------------------------------------------------
+# 6. Reporting
+# -----------------------------------------------------------------------------
+reporting:
+  output_dir: data/reports
+  formats: [json, html]
+  include_audit_trail: true
+  include_tool_calls: true
+  recommendations:
+    low: "Approve — Auto-release"
+    medium: "Needs Review for any data entry mistakes — Standard HITL"
+    high: "Urgent Attention — Block release"
+
+# -----------------------------------------------------------------------------
+# 7. Logging / Audit
+# -----------------------------------------------------------------------------
+logging:
+  level: INFO
+  audit_trail: true
+  log_tool_calls: true
+  log_file: data/reports/pipeline.log
+
+# -----------------------------------------------------------------------------
+# 8. Business rules (St. Marian Regional Medical Center)
+# -----------------------------------------------------------------------------
+business_rules:
+  bill_must_be_paid_before_release: true
+  discharge_ok_field_required: true
+  auto_approve_max_risk_score: 2
+  hitl_standard_max_risk_score: 8
+  sla_seconds:
+    auto_approve: 60
+    hitl_standard: 14400      # 4 hours
+    hitl_urgent: 1800         # 30 minutes

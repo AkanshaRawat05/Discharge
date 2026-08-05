@@ -1,0 +1,125 @@
+{
+  "bill_id": "FACT-2026-1024",
+  "patient_id": "P1024",
+  "patient_name": "Bram de Vries",
+  "currency": "EUR",
+  "issue_date": "2026-06-13",
+  "due_date": "2026-07-13",
+  "line_items": [
+    {
+      "item_code": "ROOM-WARD",
+      "description": "Verpleegafdeling bed (4 nachten)",
+      "qty": 4,
+      "unit_price": 360.0,
+      "total": 1440.0
+    },
+    {
+      "item_code": "PHARM-AMOX",
+      "description": "Amoxicilline 500 mg, 21 capsules",
+      "qty": 21,
+      "unit_price": 0.5,
+      "total": 10.5
+    },
+    {
+      "item_code": "PHARM-PARA",
+      "description": "Paracetamol 500 mg, 20 tabletten",
+      "qty": 20,
+      "unit_price": 0.15,
+      "total": 3.0
+    },
+    {
+      "item_code": "RAD-CXR",
+      "description": "Röntgenfoto van de borstkas",
+      "qty": 1,
+      "unit_price": 210.0,
+      "total": 210.0
+    },
+    {
+      "item_code": "LAB-PANEL",
+      "description": "Bloedonderzoek + CRP",
+      "qty": 1,
+      "unit_price": 60.0,
+      "total": 60.0
+    },
+    {
+      "item_code": "PROF-MD",
+      "description": "Honorarium behandelend arts",
+      "qty": 1,
+      "unit_price": 620.0,
+      "total": 620.0
+    }
+  ],
+  "subtotal": 2343.5,
+  "tax": 187.48,
+  "total_amount": 2530.98,
+  "payment_status": "PAID",
+  "payment_method": "Zorgverzekering + eigen risico",
+  "vendor_name": "Sint Marianus Regionaal Medisch Centrum",
+  "language": "nl",
+  "bill_title": "Ziekenhuisrekening — Kostenoverzicht",
+  "labels": {
+    "bill_id": "Factuurnr.",
+    "patient_id": "Patiëntnummer",
+    "patient_name": "Naam",
+    "issue_date": "Factuurdatum",
+    "due_date": "Vervaldatum",
+    "currency": "Valuta",
+    "item_code": "Code",
+    "description": "Omschrijving",
+    "qty": "Aantal",
+    "unit_price": "Stukprijs",
+    "total": "Totaal",
+    "subtotal": "Subtotaal",
+    "tax": "Btw",
+    "total_due": "TOTAAL TE BETALEN",
+    "payment_status": "Betaalstatus",
+    "payment_method": "Betaalwijze",
+    "notes": "Opmerkingen"
+  },
+  "payment_status_label": "BETAALD",
+  "footer": "Hartelijk dank voor uw betaling. Deze kwitantie bevestigt dat de bovenstaande bedragen volledig zijn voldaan. Bewaar dit document voor uw administratie.",
+  "line_items_en": [
+    {
+      "item_code": "ROOM-WARD",
+      "description": "Ward bed (4 nights)",
+      "qty": 4,
+      "unit_price": 360.0,
+      "total": 1440.0
+    },
+    {
+      "item_code": "PHARM-AMOX",
+      "description": "Amoxicillin 500 mg, 21 caps",
+      "qty": 21,
+      "unit_price": 0.5,
+      "total": 10.5
+    },
+    {
+      "item_code": "PHARM-PARA",
+      "description": "Paracetamol 500 mg, 20 tabs",
+      "qty": 20,
+      "unit_price": 0.15,
+      "total": 3.0
+    },
+    {
+      "item_code": "RAD-CXR",
+      "description": "Chest X-Ray",
+      "qty": 1,
+      "unit_price": 210.0,
+      "total": 210.0
+    },
+    {
+      "item_code": "LAB-PANEL",
+      "description": "Blood panel + CRP",
+      "qty": 1,
+      "unit_price": 60.0,
+      "total": 60.0
+    },
+    {
+      "item_code": "PROF-MD",
+      "description": "Attending physician fee",
+      "qty": 1,
+      "unit_price": 620.0,
+      "total": 620.0
+    }
+  ]
+}

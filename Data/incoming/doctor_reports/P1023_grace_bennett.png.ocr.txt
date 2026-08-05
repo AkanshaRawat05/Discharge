@@ -1,0 +1,45 @@
+ST. MARIAN REGIONAL MEDICAL CENTER  —  DISCHARGE SUMMARY
+
+Patient ID:           P1023
+Patient Name:         Grace Bennett
+Date of Birth:        1979-04-18
+Sex:                  Female
+Gender:               Female
+Age:                  47
+Address:              42 Maple Court, Springfield, IL 62702
+Admission Date:       2026-06-10
+Discharge Date:       2026-06-14
+Ward:                 2A
+Bed No.:              8
+Service Line:         General Medicine
+Attending Physician:  Dr. Olivia Hart, MD
+Consulting Doctors:   Dr. Patel (Endocrinology); Dr. Hart (Primary Care)
+Language of Record:   English
+Discharge OK:         YES
+
+DISCHARGE DIAGNOSIS
+1. Type 2 Diabetes Mellitus (T2DM) - ICD-10: E11.9
+2. Essential Hypertension (HTN)   - ICD-10: I10
+
+ALLERGIES
+- NKDA (No Known Drug Allergies)
+
+DISCHARGE PRESCRIPTIONS
+Sl.No | Medicine Name | Strength | Dosage | Frequency | Route | Period | Remarks | Total Qty
+1 | Metformin | 500 mg | 1 tablet | BID | ORAL | 30 days | With meals | 60
+2 | Lisinopril | 10 mg | 1 tablet | QD | ORAL | 30 days | Monitor blood pressure | 30
+3 | Atorvastatin | 20 mg | 1 tablet | QHS | ORAL | 30 days | At bedtime | 30
+4 | Aspirin | 81 mg | 1 tablet | QD | ORAL | 30 days | Cardioprotective | 30
+
+FOLLOW-UP APPOINTMENT
+- Endocrinology clinic on 2026-06-27 with Dr. Patel.
+- PCP follow-up on 2026-06-20 with Dr. Hart.
+
+DISCHARGE INSTRUCTIONS
+- Continue diabetic diet and 30 minutes of walking 5x/week.
+- Self-monitor blood pressure and blood glucose daily; log the readings.
+- Take all medications exactly as prescribed.
+- Return to the ED for chest pain, severe shortness of breath, or BG > 300.
+- Pharmacist counseling completed for all medications at discharge.
+
+End of Document - generated 2026-06-14 10:15 IST

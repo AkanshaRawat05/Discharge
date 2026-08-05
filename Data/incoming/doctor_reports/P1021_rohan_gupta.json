@@ -1,0 +1,64 @@
+{
+  "patient_id": "P1021",
+  "patient_name": "Rohan Gupta",
+  "dob": "1968-03-12",
+  "age": 58,
+  "sex": "M",
+  "gender": "पुरुष",
+  "address": null,
+  "admission_date": "2026-05-29",
+  "discharge_date": "2026-06-02",
+  "ward": "4A",
+  "bed_no": "12",
+  "service_line": "सामान्य चिकित्सा",
+  "attending_physician": "Dr. Anjali Mehta, MD",
+  "consulting_doctors": ["Dr. Mehta (General Medicine)", "Dr. Kapoor (Endocrinology)"],
+  "language": "hi",
+  "discharge_ok": true,
+  "discharge_diagnosis": [
+    "टाइप 2 डायबिटीज मेलिटस (E11.9)",
+    "उच्च रक्तचाप (I10)"
+  ],
+  "allergies": [
+    "Penicillin"
+  ],
+  "medications": [
+    {
+      "sl_no": 1,
+      "name": "Metformin",
+      "strength": "500 mg",
+      "dosage": "1 गोली",
+      "frequency": "BID",
+      "route": "ORAL",
+      "period": "30 days",
+      "remarks": "भोजन के साथ",
+      "total_quantity": "60"
+    },
+    {
+      "sl_no": 2,
+      "name": "Amlodipine",
+      "strength": "5 mg",
+      "dosage": "1 गोली",
+      "frequency": "QD",
+      "route": "ORAL",
+      "period": "30 days",
+      "remarks": "सुबह",
+      "total_quantity": "30"
+    },
+    {
+      "sl_no": 3,
+      "name": "Atorvastatin",
+      "strength": "20 mg",
+      "dosage": "1 गोली",
+      "frequency": "QHS",
+      "route": "ORAL",
+      "period": "30 days",
+      "remarks": "रात को सोते समय",
+      "total_quantity": "30"
+    }
+  ],
+  "abnormal_labs": [],
+  "follow_up_appointment": null,
+  "discharge_instructions": "रोज़ अपना रक्त शर्करा जाँचें। कम नमक और कम शर्करा वाला आहार लें। सभी दवाएँ नियमित रूप से लें। चक्कर आना, अत्यधिक प्यास या सीने में दर्द होने पर तुरंत ER लौटें।",
+  "raw_text": "सेंट मारियन रीजनल मेडिकल सेंटर\nडिस्चार्ज सारांश\n\nरोगी आईडी: P1021\nरोगी का नाम: Rohan Gupta\nजन्म तिथि: 1968-03-12\nलिंग: पुरुष\nरिकॉर्ड की भाषा: हिंदी\nडिस्चार्ज स्वीकृत: हाँ\n\nडिस्चार्ज निदान: टाइप 2 डायबिटीज मेलिटस (E11.9) तथा उच्च रक्तचाप (I10)।\nरोगी को Metformin, Amlodipine और Atorvastatin के साथ छुट्टी दी गई। पता रिकॉर्ड में दर्ज नहीं है और अनुवर्ती नियुक्ति निर्धारित नहीं की गई है। बिल का भुगतान अभी बाकी है।"
+}

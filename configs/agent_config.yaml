@@ -1,0 +1,213 @@
+# =============================================================================
+#  agent_config.yaml — single source of truth for ports, paths and agent wiring
+# =============================================================================
+#  Everything the system needs to find another service is declared here.
+#  Loaded once by src/discharge_ai/settings.py and exposed as `settings.cfg`.
+# =============================================================================
+
+project:
+  name: "Agentic AI System for Automated Discharge Summaries"
+  hospital: "St. Marian Regional Medical Center"
+  version: "1.0.0"
+
+# -----------------------------------------------------------------------------
+# 1. Filesystem layout (all paths are relative to the repository root)
+# -----------------------------------------------------------------------------
+paths:
+  # MCP *Roots* boundary — the Clinical Watcher tool may never read outside this
+  input_root: "Data/incoming"
+  doctor_reports: "Data/incoming/doctor_reports"
+  lab_reports: "Data/incoming/lab_reports"
+  bills: "Data/incoming/bills"
+  reports_dir: "Data/reports"
+  vector_db_dir: "Data/vector_db"
+  feedback_dir: "Data/feedback"
+  sessions_dir: "Data/sessions"
+  rules_file: "configs/rules.yaml"
+  prompts_file: "configs/prompts.yaml"
+  html_template: "src/discharge_ai/reporting/templates/discharge_summary.html"
+  audit_template: "src/discharge_ai/reporting/templates/audit_report.html"
+
+# -----------------------------------------------------------------------------
+# 2. Service port map  (mirrors Table 15 of the specification)
+# -----------------------------------------------------------------------------
+services:
+  mock_ehr:
+    host: "127.0.0.1"
+    port: 8050
+    base_url: "http://127.0.0.1:8050"
+
+  mcp_primary:
+    name: "clinical-tools-server"
+    host: "127.0.0.1"
+    port: 8200
+    path: "/clinicaltools"
+    url: "http://127.0.0.1:8200/clinicaltools"
+    transport: "streamable-http"
+    primitives: [tools, resources, prompts, sampling, elicitation, roots]
+
+  mcp_analytics:
+    name: "analytics-server"
+    host: "127.0.0.1"
+    port: 8201
+    path: "/analyticstools"
+    url: "http://127.0.0.1:8201/analyticstools"
+    transport: "streamable-http"
+    primitives: [tools]
+
+  dashboard:
+    host: "127.0.0.1"
+    port: 8501
+    url: "http://127.0.0.1:8501"
+
+  orchestrator_ui:
+    host: "127.0.0.1"
+    port: 8083
+    url: "http://127.0.0.1:8083"
+
+# -----------------------------------------------------------------------------
+# 3. A2A agents  (mirrors Table 6 of the specification)
+# -----------------------------------------------------------------------------
+a2a:
+  auth_header: "X-Agent-Auth-Token"
+  request_timeout_seconds: 180
+  agents:
+    extractor:
+      name: "Clinical Extractor Agent"
+      framework: "langgraph"
+      port: 8100
+      url: "http://127.0.0.1:8100"
+      streaming: false
+      mcp_primitives: [tools, resources, prompts]
+      skill_id: "extract_clinical_data"
+
+    validator:
+      name: "Clinical Validation Agent"
+      framework: "langgraph"
+      port: 8101
+      url: "http://127.0.0.1:8101"
+      streaming: false
+      mcp_primitives: [tools, elicitation, resources]
+      skill_id: "validate_discharge"
+
+    normalizer:
+      name: "Clinical Normalizer Agent"
+      framework: "langgraph"
+      port: 8102
+      url: "http://127.0.0.1:8102"
+      streaming: false
+      mcp_primitives: [tools, sampling, prompts]
+      skill_id: "normalize_clinical_language"
+
+    monitor:
+      name: "Discharge Monitor Agent"
+      framework: "google-adk"
+      port: 8103
+      url: "http://127.0.0.1:8103"
+      streaming: false
+      mcp_primitives: [tools, roots]
+      skill_id: "scan_incoming_documents"
+
+    summary:
+      name: "Discharge Summary Generator Agent"
+      framework: "google-adk"
+      port: 8104
+      url: "http://127.0.0.1:8104"
+      streaming: true
+      mcp_primitives: [tools, prompts]
+      skill_id: "generate_discharge_summary"
+
+    rag:
+      name: "Clinical RAG Q&A Agent"
+      framework: "agno"
+      port: 8105
+      url: "http://127.0.0.1:8105"
+      streaming: true
+      mcp_primitives: [multi_mcp_tools, prompts]
+      skill_id: "answer_clinical_question"
+
+    orchestrator:
+      name: "Host Orchestrator"
+      framework: "google-adk"
+      port: 8083
+      url: "http://127.0.0.1:8083"
+      streaming: true
+      role: "a2a-client"
+
+# -----------------------------------------------------------------------------
+# 4. Retrieval-Augmented Generation
+# -----------------------------------------------------------------------------
+rag:
+  chunk_size: 900
+  chunk_overlap: 150
+  top_k: 5
+  rerank_top_k: 3
+  session_history_turns: 3          # Agno SqliteDb: last 3 turns as context
+  sqlite_file: "Data/sessions/agno_rag.sqlite"
+  faiss_index_name: "clinical_docs"
+  out_of_context_answer: "I don't know — this information is not available in the patient records."
+  triad_thresholds:
+    faithfulness: 0.70
+    answer_relevance: 0.70
+    context_relevance: 0.60
+
+# -----------------------------------------------------------------------------
+# 5. MCP Sampling — model preference hints published by the server
+#    (client-side sampling_callback maps these onto the ACTIVE provider)
+# -----------------------------------------------------------------------------
+sampling:
+  model_hints:
+    multilingual: "nova-lite"        # spec hint for non-English source text
+    english: "command-r-plus"        # spec hint for English text
+  intelligence_priority: 0.6
+  speed_priority: 0.4
+  # How the client resolves a server hint onto a concrete model per provider.
+  hint_routing:
+    bedrock:
+      nova-lite: "amazon.nova-lite-v1:0"
+      command-r-plus: "cohere.command-r-plus-v1:0"
+
+# -----------------------------------------------------------------------------
+# 5b. Clinical language normalization
+# -----------------------------------------------------------------------------
+#  Baseline translation confidence per source language, before penalties.
+#  Rationale: English needs no translation; Spanish is the best-covered
+#  non-English language in our clinical terminology tables; Devanagari (Hindi)
+#  and the Germanic set carry the most residual risk on drug/dose strings, so
+#  they start below the 0.70 minimum in rules.yaml and therefore always surface
+#  a translation-confidence flag for human review.
+normalization:
+  language_confidence:
+    en: 1.00
+    es: 0.88
+    de: 0.66
+    fr: 0.66
+    nl: 0.64
+    hi: 0.58
+    unknown: 0.60
+  penalties:
+    ocr_source: 0.10              # handwritten / scanned origin
+    missing_translation: 0.15     # LLM translation unavailable
+    untranslated_residue: 0.10    # non-Latin characters left in the output
+  # The final score is min(heuristic, model-reported) — the conservative view,
+  # so an over-confident model can never suppress the guardrail.
+  blend_strategy: conservative_min
+
+# -----------------------------------------------------------------------------
+# 6. Responsible-AI guardrails
+# -----------------------------------------------------------------------------
+guardrails:
+  pii_redaction: true
+  hallucination_check: true
+  prompt_injection_guard: true
+  toxicity_filter: true
+  hallucination_faithfulness_min: 0.70
+  escalate_on_high_risk: true
+
+# -----------------------------------------------------------------------------
+# 7. Observability
+# -----------------------------------------------------------------------------
+observability:
+  service_name: "discharge-ai"
+  environment: "development"
+  flush_on_exit: true

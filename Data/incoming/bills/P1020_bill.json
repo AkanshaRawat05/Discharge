@@ -1,0 +1,140 @@
+{
+  "bill_id": "FACT-2026-1020",
+  "patient_id": "P1020",
+  "patient_name": "Diego Morales",
+  "issue_date": "2026-05-28",
+  "due_date": "2026-06-27",
+  "currency": "USD",
+  "payment_status": "PAID",
+  "payment_method": "Seguro",
+  "notes": "Copago cobrado al alta. Liquidado en su totalidad.",
+  "line_items": [
+    {
+      "item_code": "ROOM-WARD",
+      "description": "Cama de sala (4 noches)",
+      "qty": 4,
+      "unit_price": 350.0,
+      "total": 1400.0
+    },
+    {
+      "item_code": "PHARM-METF",
+      "description": "Metformina 500 mg, 60 tabletas",
+      "qty": 60,
+      "unit_price": 0.1,
+      "total": 6.0
+    },
+    {
+      "item_code": "PHARM-LISI",
+      "description": "Lisinopril 10 mg, 30 tabletas",
+      "qty": 30,
+      "unit_price": 0.12,
+      "total": 3.6
+    },
+    {
+      "item_code": "PHARM-ATOR",
+      "description": "Atorvastatina 20 mg, 30 tabletas",
+      "qty": 30,
+      "unit_price": 0.2,
+      "total": 6.0
+    },
+    {
+      "item_code": "PHARM-ASA",
+      "description": "Aspirina 81 mg, 30 tabletas",
+      "qty": 30,
+      "unit_price": 0.05,
+      "total": 1.5
+    },
+    {
+      "item_code": "LAB-PANEL",
+      "description": "Panel metabólico y de lípidos",
+      "qty": 1,
+      "unit_price": 95.0,
+      "total": 95.0
+    },
+    {
+      "item_code": "PROF-MD",
+      "description": "Honorarios del médico tratante",
+      "qty": 1,
+      "unit_price": 600.0,
+      "total": 600.0
+    }
+  ],
+  "subtotal": 2112.1,
+  "tax": 168.97,
+  "total_amount": 2281.07,
+  "language": "es",
+  "bill_title": "Factura Hospitalaria — Estado de Cuenta",
+  "vendor_name": "Centro Médico Regional St. Marian",
+  "labels": {
+    "bill_id": "N.º de Factura",
+    "patient_id": "ID del Paciente",
+    "patient_name": "Nombre del Paciente",
+    "issue_date": "Fecha de Emisión",
+    "due_date": "Fecha de Vencimiento",
+    "currency": "Moneda",
+    "item_code": "Código",
+    "description": "Descripción",
+    "qty": "Cant.",
+    "unit_price": "Precio Unitario",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "tax": "Impuesto",
+    "total_due": "TOTAL A PAGAR",
+    "payment_status": "Estado de Pago",
+    "payment_method": "Método de Pago",
+    "notes": "Notas"
+  },
+  "payment_status_label": "PAGADO",
+  "footer": "Gracias por su pago. Este recibo confirma que los cargos anteriores han sido liquidados en su totalidad. Conserve este documento para sus registros.",
+  "line_items_es": [
+    {
+      "item_code": "ROOM-WARD",
+      "description": "Cama de sala (4 noches)",
+      "qty": 4,
+      "unit_price": 350.0,
+      "total": 1400.0
+    },
+    {
+      "item_code": "PHARM-METF",
+      "description": "Metformina 500 mg, 60 tabletas",
+      "qty": 60,
+      "unit_price": 0.1,
+      "total": 6.0
+    },
+    {
+      "item_code": "PHARM-LISI",
+      "description": "Lisinopril 10 mg, 30 tabletas",
+      "qty": 30,
+      "unit_price": 0.12,
+      "total": 3.6
+    },
+    {
+      "item_code": "PHARM-ATOR",
+      "description": "Atorvastatina 20 mg, 30 tabletas",
+      "qty": 30,
+      "unit_price": 0.2,
+      "total": 6.0
+    },
+    {
+      "item_code": "PHARM-ASA",
+      "description": "Aspirina 81 mg, 30 tabletas",
+      "qty": 30,
+      "unit_price": 0.05,
+      "total": 1.5
+    },
+    {
+      "item_code": "LAB-PANEL",
+      "description": "Panel metabólico y de lípidos",
+      "qty": 1,
+      "unit_price": 95.0,
+      "total": 95.0
+    },
+    {
+      "item_code": "PROF-MD",
+      "description": "Honorarios del médico tratante",
+      "qty": 1,
+      "unit_price": 600.0,
+      "total": 600.0
+    }
+  ]
+}

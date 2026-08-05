@@ -1,0 +1,140 @@
+{
+  "bill_id": "BILL-2026-1019",
+  "patient_id": "P1019",
+  "patient_name": "Thomas Wright",
+  "issue_date": "2026-05-29",
+  "due_date": "2026-06-28",
+  "currency": "USD",
+  "payment_status": "PAID",
+  "payment_method": "Insurance",
+  "notes": "Co-pay collected at discharge. Settled in full.",
+  "line_items": [
+    {
+      "item_code": "ROOM-WARD",
+      "description": "Ward bed (3 nights)",
+      "qty": 3,
+      "unit_price": 350.0,
+      "total": 1050.0
+    },
+    {
+      "item_code": "PHARM-METF",
+      "description": "Metformin 500 mg, 60 tabs",
+      "qty": 60,
+      "unit_price": 0.1,
+      "total": 6.0
+    },
+    {
+      "item_code": "PHARM-LISI",
+      "description": "Lisinopril 10 mg, 30 tabs",
+      "qty": 30,
+      "unit_price": 0.12,
+      "total": 3.6
+    },
+    {
+      "item_code": "PHARM-ATOR",
+      "description": "Atorvastatin 20 mg, 30 tabs",
+      "qty": 30,
+      "unit_price": 0.2,
+      "total": 6.0
+    },
+    {
+      "item_code": "PHARM-ASA",
+      "description": "Aspirin 81 mg, 30 tabs",
+      "qty": 30,
+      "unit_price": 0.05,
+      "total": 1.5
+    },
+    {
+      "item_code": "LAB-HBA1C",
+      "description": "HbA1c + lipid panel",
+      "qty": 1,
+      "unit_price": 95.0,
+      "total": 95.0
+    },
+    {
+      "item_code": "PROF-MD",
+      "description": "Attending physician fee",
+      "qty": 1,
+      "unit_price": 600.0,
+      "total": 600.0
+    }
+  ],
+  "subtotal": 1762.1,
+  "tax": 140.97,
+  "total_amount": 1903.07,
+  "language": "en",
+  "bill_title": "Hospital Bill — Statement of Charges",
+  "vendor_name": "St. Marian Regional Medical Center",
+  "labels": {
+    "bill_id": "Bill ID",
+    "patient_id": "Patient ID",
+    "patient_name": "Patient Name",
+    "issue_date": "Issue Date",
+    "due_date": "Due Date",
+    "currency": "Currency",
+    "item_code": "Code",
+    "description": "Description",
+    "qty": "Qty",
+    "unit_price": "Unit Price",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "total_due": "TOTAL DUE",
+    "payment_status": "Payment Status",
+    "payment_method": "Payment Method",
+    "notes": "Notes"
+  },
+  "payment_status_label": "PAID",
+  "footer": "Thank you for your payment. This receipt confirms the above charges have been settled in full. Retain this document for your records.",
+  "line_items_en": [
+    {
+      "item_code": "ROOM-WARD",
+      "description": "Ward bed (3 nights)",
+      "qty": 3,
+      "unit_price": 350.0,
+      "total": 1050.0
+    },
+    {
+      "item_code": "PHARM-METF",
+      "description": "Metformin 500 mg, 60 tabs",
+      "qty": 60,
+      "unit_price": 0.1,
+      "total": 6.0
+    },
+    {
+      "item_code": "PHARM-LISI",
+      "description": "Lisinopril 10 mg, 30 tabs",
+      "qty": 30,
+      "unit_price": 0.12,
+      "total": 3.6
+    },
+    {
+      "item_code": "PHARM-ATOR",
+      "description": "Atorvastatin 20 mg, 30 tabs",
+      "qty": 30,
+      "unit_price": 0.2,
+      "total": 6.0
+    },
+    {
+      "item_code": "PHARM-ASA",
+      "description": "Aspirin 81 mg, 30 tabs",
+      "qty": 30,
+      "unit_price": 0.05,
+      "total": 1.5
+    },
+    {
+      "item_code": "LAB-HBA1C",
+      "description": "HbA1c + lipid panel",
+      "qty": 1,
+      "unit_price": 95.0,
+      "total": 95.0
+    },
+    {
+      "item_code": "PROF-MD",
+      "description": "Attending physician fee",
+      "qty": 1,
+      "unit_price": 600.0,
+      "total": 600.0
+    }
+  ]
+}

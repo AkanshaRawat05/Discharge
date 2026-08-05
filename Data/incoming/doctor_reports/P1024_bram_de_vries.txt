@@ -1,0 +1,48 @@
+================================================================
+SINT MARIANUS REGIONAAL MEDISCH CENTRUM  —  ONTSLAGBRIEF
+================================================================
+
+Patiëntnummer:        P1024
+Naam:                 Bram de Vries
+Geslacht:             Man
+Adres:                Kerkstraat 12, 1011 PA Amsterdam
+Opnamedatum:          2026-06-09
+Ontslagdatum:         2026-06-13
+Afdeling:             3B
+Bed:                  14
+Specialisme:          Algemene Geneeskunde
+Taal van dossier:     Nederlands
+Ontslag goedgekeurd:  JA
+
+----------------------------------------------------------------
+ONTSLAGDIAGNOSE
+----------------------------------------------------------------
+1. Buiten het ziekenhuis opgelopen pneumonie (J18.9)
+
+----------------------------------------------------------------
+ALLERGIEËN
+----------------------------------------------------------------
+- Penicilline (gedocumenteerde huiduitslag)
+
+----------------------------------------------------------------
+ONTSLAGRECEPTEN
+----------------------------------------------------------------
+Nr. | Geneesmiddel | Sterkte | Dosering | Frequentie | Toedieningsweg | Duur | Opmerkingen | Totale hoeveelheid
+1 | Amoxicilline | 500 mg | 1 tablet | TID | ORAAL | 7 dagen | Volledige kuur afmaken | 21
+2 | Paracetamol | 500 mg | 1 tablet | q6h PRN | ORAAL | 5 dagen | Bij koorts | 20
+
+----------------------------------------------------------------
+VERVOLGAFSPRAAK
+----------------------------------------------------------------
+- Controle bij de huisarts op 2026-06-25.
+
+----------------------------------------------------------------
+ONTSLAGINSTRUCTIES
+----------------------------------------------------------------
+- Maak de antibioticakuur volledig af.
+- Drink voldoende en neem voldoende rust.
+- Keer terug naar de SEH bij hoge koorts, kortademigheid of pijn op de borst.
+
+================================================================
+Einde van document — gegenereerd 2026-06-13 14:20 CET
+================================================================

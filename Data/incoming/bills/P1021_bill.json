@@ -1,0 +1,125 @@
+{
+  "bill_id": "INV-2026-1021",
+  "patient_id": "P1021",
+  "patient_name": "Rohan Gupta",
+  "currency": "USD",
+  "issue_date": "2026-06-02",
+  "due_date": "2026-07-02",
+  "line_items": [
+    {
+      "item_code": "ROOM-WARD-001",
+      "description": "सामान्य वार्ड बिस्तर (4 रातें)",
+      "qty": 4,
+      "unit_price": 350.0,
+      "total": 1400.0
+    },
+    {
+      "item_code": "PHARM-METFORMIN",
+      "description": "Metformin 500 mg, 60 गोलियाँ",
+      "qty": 60,
+      "unit_price": 0.3,
+      "total": 18.0
+    },
+    {
+      "item_code": "PHARM-AMLODIPINE",
+      "description": "Amlodipine 5 mg, 30 गोलियाँ",
+      "qty": 30,
+      "unit_price": 0.25,
+      "total": 7.5
+    },
+    {
+      "item_code": "PHARM-ATORVA",
+      "description": "Atorvastatin 20 mg, 30 गोलियाँ",
+      "qty": 30,
+      "unit_price": 0.4,
+      "total": 12.0
+    },
+    {
+      "item_code": "LAB-METPANEL",
+      "description": "चयापचय पैनल + HbA1c + लिपिड",
+      "qty": 1,
+      "unit_price": 220.0,
+      "total": 220.0
+    },
+    {
+      "item_code": "PROF-MD",
+      "description": "उपचार करने वाले चिकित्सक का शुल्क",
+      "qty": 1,
+      "unit_price": 900.0,
+      "total": 900.0
+    }
+  ],
+  "subtotal": 2557.5,
+  "tax": 204.6,
+  "total_amount": 2762.1,
+  "payment_status": "UNPAID",
+  "payment_method": "लंबित — वित्तीय परामर्श आवश्यक",
+  "vendor_name": "सेंट मारियन रीजनल मेडिकल सेंटर",
+  "language": "hi",
+  "bill_title": "अस्पताल बिल — शुल्क विवरण",
+  "labels": {
+    "bill_id": "बिल आईडी",
+    "patient_id": "रोगी आईडी",
+    "patient_name": "रोगी का नाम",
+    "issue_date": "जारी करने की तिथि",
+    "due_date": "देय तिथि",
+    "currency": "मुद्रा",
+    "item_code": "कोड",
+    "description": "विवरण",
+    "qty": "मात्रा",
+    "unit_price": "इकाई मूल्य",
+    "total": "कुल",
+    "subtotal": "उप-योग",
+    "tax": "कर",
+    "total_due": "कुल देय",
+    "payment_status": "भुगतान स्थिति",
+    "payment_method": "भुगतान विधि",
+    "notes": "टिप्पणियाँ"
+  },
+  "payment_status_label": "भुगतान नहीं किया",
+  "footer": "यह बिल अभी बकाया है। रोगी की छुट्टी से पहले बकाया राशि का निपटान आवश्यक है। कृपया वित्तीय परामर्श कार्यालय से संपर्क करें।",
+  "line_items_en": [
+    {
+      "item_code": "ROOM-WARD-001",
+      "description": "Ward bed (4 nights)",
+      "qty": 4,
+      "unit_price": 350.0,
+      "total": 1400.0
+    },
+    {
+      "item_code": "PHARM-METFORMIN",
+      "description": "Metformin 500 mg, 60 tabs",
+      "qty": 60,
+      "unit_price": 0.3,
+      "total": 18.0
+    },
+    {
+      "item_code": "PHARM-AMLODIPINE",
+      "description": "Amlodipine 5 mg, 30 tabs",
+      "qty": 30,
+      "unit_price": 0.25,
+      "total": 7.5
+    },
+    {
+      "item_code": "PHARM-ATORVA",
+      "description": "Atorvastatin 20 mg, 30 tabs",
+      "qty": 30,
+      "unit_price": 0.4,
+      "total": 12.0
+    },
+    {
+      "item_code": "LAB-METPANEL",
+      "description": "Metabolic panel + HbA1c + lipids",
+      "qty": 1,
+      "unit_price": 220.0,
+      "total": 220.0
+    },
+    {
+      "item_code": "PROF-MD",
+      "description": "Attending physician fee",
+      "qty": 1,
+      "unit_price": 900.0,
+      "total": 900.0
+    }
+  ]
+}

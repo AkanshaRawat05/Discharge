@@ -1,0 +1,27 @@
+# --- secrets -----------------------------------------------------------------
+.env
+
+# --- python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- generated runtime artefacts ---------------------------------------------
+Data/reports/
+Data/vector_db/
+Data/feedback/
+Data/sessions/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# --- editors / os ------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

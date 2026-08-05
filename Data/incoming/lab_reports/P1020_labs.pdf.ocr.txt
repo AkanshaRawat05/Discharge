@@ -1,0 +1,28 @@
+================================================================
+LABORATORIO CLÍNICO VIDA SANA  —  INFORME DE LABORATORIO
+================================================================
+
+Laboratorio:          Laboratorio Clínico Vida Sana
+Acreditación:         ISO 15189
+ID del Paciente:      P1020
+Nombre:               Diego Morales
+Fecha de Nacimiento:  1968-02-10
+Sexo:                 Masculino
+Médico Solicitante:   Dra. Sofia Ramirez, MD
+Muestra Recolectada:  2026-05-27
+Reportado:            2026-05-28
+Idioma del Informe:   Español
+
+----------------------------------------------------------------
+RESULTADOS DE LABORATORIO
+----------------------------------------------------------------
+Prueba           | Resultado | Unidades | Rango de Referencia | Indicador
+HbA1c            | 5.4       | %        | 4.0 - 5.6           | NORMAL
+Glucosa en Ayuno | 92        | mg/dL    | 70 - 99             | NORMAL
+Creatinina       | 0.9       | mg/dL    | 0.6 - 1.1           | NORMAL
+Potasio          | 4.1       | mmol/L   | 3.5 - 5.1           | NORMAL
+Colesterol LDL   | 96        | mg/dL    | < 100               | NORMAL
+
+================================================================
+Fin del Informe de Laboratorio — Laboratorio Clínico Vida Sana
+================================================================

@@ -1,0 +1,34 @@
+================================================================
+HERITAGE CLINICAL LABORATORIES  —  LABORATORY REPORT
+================================================================
+
+Performing Lab:       Heritage Clinical Laboratories
+Accreditation:        CAP / CLIA #38D5519064
+Patient ID:           P1019
+Patient Name:         Thomas Wright
+Date of Birth:        1972-06-15
+Sex:                  Male
+Ordering Physician:   Dr. Rachel Greene, MD
+Specimen Collected:   2026-05-28
+Reported:             2026-05-29
+Report Language:      English
+
+----------------------------------------------------------------
+LABORATORY RESULTS
+----------------------------------------------------------------
+Test             | Result | Units | Reference Range | Flag
+HbA1c            | 6.9    | %     | 4.0 - 5.6       | HIGH
+LDL Cholesterol  | 118    | mg/dL | < 100           | HIGH
+Fasting Glucose  | 122    | mg/dL | 70 - 99         | HIGH
+Creatinine       | 0.9    | mg/dL | 0.6 - 1.1       | NORMAL
+Potassium        | 4.2    | mmol/L| 3.5 - 5.1       | NORMAL
+
+----------------------------------------------------------------
+ABNORMAL LAB FINDINGS
+----------------------------------------------------------------
+HbA1c 6.9 % - Action: continue Metformin, recheck in 3 months
+LDL 118 mg/dL - Action: continue statin, recheck lipid panel in 6 weeks
+
+================================================================
+End of Laboratory Report — Heritage Clinical Laboratories
+================================================================

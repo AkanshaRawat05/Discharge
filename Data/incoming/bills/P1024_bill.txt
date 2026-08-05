@@ -1,0 +1,33 @@
+================================================================
+SINT MARIANUS REGIONAAL MEDISCH CENTRUM
+Ziekenhuisrekening — Kostenoverzicht
+================================================================
+
+Factuurnr.:        FACT-2026-1024
+Patiëntnummer:     P1024
+Naam:              Bram de Vries
+Factuurdatum:      2026-06-13
+Vervaldatum:       2026-07-13
+Valuta:            EUR
+
+----------------------------------------------------------------
+Code             Omschrijving                       Aantal   Stukprijs      Totaal
+----------------------------------------------------------------
+ROOM-WARD        Verpleegafdeling bed (4 nachten)        4      360.00     1440.00
+PHARM-AMOX       Amoxicilline 500 mg, 21 capsules       21        0.50       10.50
+PHARM-PARA       Paracetamol 500 mg, 20 tabletten       20        0.15        3.00
+RAD-CXR          Röntgenfoto van de borstkas             1      210.00      210.00
+LAB-PANEL        Bloedonderzoek + CRP                    1       60.00       60.00
+PROF-MD          Honorarium behandelend arts             1      620.00      620.00
+----------------------------------------------------------------
+                                                    Subtotaal: 2343.50
+                                                          Btw:  187.48
+                                            TOTAAL TE BETALEN: 2530.98 EUR
+
+Betaalstatus: BETAALD
+Betaalwijze:  Zorgverzekering + eigen risico
+
+Hartelijk dank voor uw betaling. Deze kwitantie bevestigt dat de
+bovenstaande bedragen volledig zijn voldaan. Bewaar dit document voor
+uw administratie.
+================================================================

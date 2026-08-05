@@ -1,0 +1,31 @@
+================================================================
+DELTA DIAGNOSTISCH LABORATORIUM  —  LABORATORIUMRAPPORT
+================================================================
+
+Laboratorium:           Delta Diagnostisch Laboratorium
+Accreditatie:           RvA / ISO 15189 / Reg. #NL-44120
+Patiëntnummer:          P1024
+Naam:                   Bram de Vries
+Geslacht:               Man
+Afnamedatum:            2026-06-10
+Gerapporteerd:          2026-06-11
+Taal van rapport:       Nederlands
+
+----------------------------------------------------------------
+LABORATORIUMRESULTATEN
+----------------------------------------------------------------
+Test            | Resultaat | Eenheid  | Referentiebereik | Indicator
+Leukocyten      | 8.9       | x10^9/L  | 4.0 - 11.0       | NORMAAL
+CRP             | 38        | mg/L     | < 5              | NORMAAL
+Procalcitonine  | 0.2       | ng/mL    | < 0.5           | NORMAAL
+Hemoglobine     | 14.6      | g/dL     | 13.0 - 17.0      | NORMAAL
+
+----------------------------------------------------------------
+OPMERKING
+----------------------------------------------------------------
+Alle laboratoriumwaarden vallen binnen de normale grenzen. Geen
+openstaande abnormale bevindingen die een gedocumenteerde actie vereisen.
+
+================================================================
+Einde van laboratoriumrapport — Delta Diagnostisch Laboratorium
+================================================================

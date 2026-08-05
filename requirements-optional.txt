@@ -1,0 +1,17 @@
+# =============================================================================
+#  OPTIONAL extras — the system runs fine without these.
+# =============================================================================
+#   pip install -r requirements-optional.txt
+# =============================================================================
+
+# --- Local embeddings (spec model: sentence-transformers/all-MiniLM-L6-v2) ---
+# ~2.5 GB download because of PyTorch.  Without it the system automatically
+# falls back to EMBEDDING_PROVIDER=hashing (deterministic, offline, no deps)
+# or EMBEDDING_PROVIDER=bedrock (Amazon Titan Text Embeddings V2, the default).
+sentence-transformers>=3.0.0
+
+# --- OCR for scanned / handwritten documents ---------------------------------
+# Also needs the Tesseract binary on PATH:  https://github.com/UB-Mannheim/tesseract/wiki
+# Every scanned sample in Data/incoming already ships a pre-extracted
+# "<name>.ocr.txt" sidecar, so OCR is only needed for brand-new scans.
+pytesseract>=0.3.10

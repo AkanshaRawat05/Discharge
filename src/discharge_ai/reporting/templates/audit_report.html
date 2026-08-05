@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Discharge Audit &amp; Risk Report — {{ report.patient_id }}</title>
+<style>
+  :root {
+    --navy:#12305c; --ink:#1c2431; --muted:#5d6b7f; --line:#dde3ec; --bg:#f5f7fb;
+    --crit:#b8202e; --crit-bg:#fdecee; --warn:#8a5a00; --warn-bg:#fff6e2;
+    --info:#1b5e8a; --info-bg:#eaf4fb; --ok:#1c6b3f; --ok-bg:#e9f6ee;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px; font:14px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); background:var(--bg); }
+  .sheet { max-width:1040px; margin:0 auto; background:#fff; border:1px solid var(--line);
+           border-radius:10px; overflow:hidden; }
+  header { background:var(--navy); color:#fff; padding:24px 28px; }
+  header h1 { margin:0 0 4px; font-size:21px; letter-spacing:.2px; }
+  header .sub { opacity:.85; font-size:13px; }
+  .band { display:flex; flex-wrap:wrap; gap:1px; background:var(--line); }
+  .band > div { flex:1 1 170px; background:#fff; padding:14px 18px; }
+  .band .k { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }
+  .band .v { font-size:17px; font-weight:600; margin-top:3px; }
+  section { padding:22px 28px; border-top:1px solid var(--line); }
+  h2 { margin:0 0 14px; font-size:15px; text-transform:uppercase; letter-spacing:.7px; color:var(--navy); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f8fafc; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .pill { display:inline-block; padding:2px 10px; border-radius:11px; font-size:11px;
+          font-weight:700; letter-spacing:.4px; text-transform:uppercase; }
+  .Critical,.High,.Reject { color:var(--crit); background:var(--crit-bg); }
+  .Warning,.Medium,.Edit  { color:var(--warn); background:var(--warn-bg); }
+  .Info                   { color:var(--info); background:var(--info-bg); }
+  .Low,.Approve,.ok       { color:var(--ok);   background:var(--ok-bg); }
+  .meter { height:8px; background:var(--line); border-radius:5px; overflow:hidden; max-width:280px; }
+  .meter > span { display:block; height:100%; background:var(--ok); }
+  .meter.warn > span { background:#d69200; }
+  .meter.crit > span { background:var(--crit); }
+  .blocked { padding:12px 16px; border-radius:7px; background:var(--crit-bg);
+             color:var(--crit); font-weight:600; border:1px solid #f3c3c8; }
+  .cleared { padding:12px 16px; border-radius:7px; background:var(--ok-bg);
+             color:var(--ok); font-weight:600; border:1px solid #bfe3cd; }
+  ul { margin:6px 0 0; padding-left:20px; }
+  code { background:#f2f5f9; padding:1px 5px; border-radius:4px; font-size:12px; }
+  .muted { color:var(--muted); }
+  footer { padding:16px 28px; background:#fafbfd; border-top:1px solid var(--line);
+           font-size:11px; color:var(--muted); }
+  a { color:var(--navy); }
+  @media print { body { background:#fff; padding:0; } .sheet { border:0; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header>
+    <h1>Discharge Audit &amp; Risk Report</h1>
+    <div class="sub">
+      {{ hospital }} &middot; Patient <strong>{{ report.patient_id }}</strong>
+      {% if report.patient_name %}&middot; {{ report.patient_name }}{% endif %}
+      &middot; generated {{ report.generated_at }}
+    </div>
+  </header>
+
+  <div class="band">
+    <div>
+      <div class="k">Risk level</div>
+      <div class="v"><span class="pill {{ report.risk.level.value }}">{{ report.risk.level.value }}</span></div>
+    </div>
+    <div>
+      <div class="k">Risk score</div>
+      <div class="v">{{ report.risk.score }}
+        <span class="muted" style="font-size:12px">/ low&nbsp;&le;&nbsp;{{ thresholds.low_max }}, medium&nbsp;&le;&nbsp;{{ thresholds.medium_max }}</span>
+      </div>
+    </div>
+    <div>
+      <div class="k">Recommendation</div>
+      <div class="v"><span class="pill {{ report.risk.recommendation.value }}">{{ report.risk.recommendation.value }}</span></div>
+    </div>
+    <div>
+      <div class="k">Completeness</div>
+      <div class="v">{{ report.completeness.score }}%</div>
+      <div class="meter {{ 'crit' if report.completeness.score < 85 else ('warn' if report.completeness.score < 100 else '') }}">
+        <span style="width:{{ report.completeness.score }}%"></span>
+      </div>
+    </div>
+    <div>
+      <div class="k">Translation confidence</div>
+      <div class="v">{{ '%.2f'|format(report.translation_confidence) }}
+        <span class="muted" style="font-size:12px">({{ report.detected_language }})</span>
+      </div>
+    </div>
+    <div>
+      <div class="k">Bill</div>
+      <div class="v">
+        {% if report.bill_total_amount is not none %}
+          {{ '%.2f'|format(report.bill_total_amount) }} {{ report.bill_currency or '' }}
+        {% else %}&mdash;{% endif %}
+        <span class="pill {{ 'ok' if report.bill_payment_status == 'PAID' else 'Critical' }}">
+          {{ report.bill_payment_status or 'UNKNOWN' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Release decision</h2>
+    {% if report.risk.discharge_blocked %}
+      <p class="blocked">
+        DISCHARGE BLOCKED &mdash; {{ report.risk.recommendation_text or 'human review required before release' }}
+        {% if report.risk.hard_guardrails_hit %}
+          <br><span style="font-weight:500">Hard guardrails triggered:
+          {{ report.risk.hard_guardrails_hit|join(', ') }}</span>
+        {% endif %}
+      </p>
+    {% elif report.risk.hitl_required %}
+      <p class="blocked" style="background:var(--warn-bg);color:var(--warn);border-color:#f0dca8">
+        HUMAN REVIEW REQUIRED &mdash; {{ report.risk.recommendation_text }}
+      </p>
+    {% else %}
+      <p class="cleared">CLEARED FOR AUTO-RELEASE &mdash; {{ report.risk.recommendation_text }}</p>
+    {% endif %}
+    {% if report.ehr_verdict %}<p class="muted">{{ report.ehr_verdict }}</p>{% endif %}
+  </section>
+
+  <section>
+    <h2>Missing fields ({{ report.completeness.missing_fields|length }})</h2>
+    {% if report.completeness.missing_fields %}
+      <table>
+        <thead><tr><th>Document</th><th>Field</th><th>Row</th><th>Blocking</th><th>Reviewer prompt</th></tr></thead>
+        <tbody>
+        {% for field in report.completeness.missing_fields %}
+          <tr>
+            <td>{{ field.document }}</td>
+            <td><code>{{ field.field }}</code></td>
+            <td>{{ field.row or '—' }}</td>
+            <td><span class="pill {{ 'Critical' if field.blocking else 'Warning' }}">
+              {{ 'BLOCKING' if field.blocking else 'non-blocking' }}</span></td>
+            <td class="muted">{{ field.prompt }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="cleared">All mandatory fields are documented.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>EHR cross-validation findings ({{ report.findings|length }})</h2>
+    {% if report.findings %}
+      <table>
+        <thead><tr><th>Severity</th><th>Rule</th><th>Finding</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for finding in report.findings %}
+          <tr>
+            <td><span class="pill {{ finding.severity.value }}">{{ finding.severity.value }}</span></td>
+            <td><code>{{ finding.rule_id }}</code></td>
+            <td>
+              {{ finding.message }}
+              {% if finding.clinical_impact %}
+                <div class="muted"><em>Clinical impact:</em> {{ finding.clinical_impact }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {{ finding.suggested_action or finding.action }}
+              {% if finding.blocks_discharge %}
+                <div><span class="pill Critical">blocks discharge</span></div>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="cleared">No discrepancies against the EHR, care plan or labs.</p>
+    {% endif %}
+  </section>
+
+  {% if report.risk.contributions %}
+  <section>
+    <h2>Risk score breakdown</h2>
+    <table>
+      <thead><tr><th>Source</th><th>Item</th><th>Weight key</th><th style="text-align:right">Weight</th></tr></thead>
+      <tbody>
+      {% for item in report.risk.contributions %}
+        <tr>
+          <td>{{ item.source }}</td>
+          <td>{{ item.get('rule_id') or item.get('field') }}</td>
+          <td><code>{{ item.get('risk_key') }}</code></td>
+          <td style="text-align:right"><strong>{{ item.get('weight') }}</strong></td>
+        </tr>
+      {% endfor %}
+      <tr><td colspan="3" style="text-align:right"><strong>Total</strong></td>
+          <td style="text-align:right"><strong>{{ report.risk.score }}</strong></td></tr>
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>MCP Elicitation</h2>
+    <p>
+      Outcome: <span class="pill {{ 'Low' if report.elicitation.outcome.value == 'accept' else 'Warning' }}">
+      {{ report.elicitation.outcome.value }}</span>
+      {% if report.elicitation.note %}<span class="muted"> &mdash; {{ report.elicitation.note }}</span>{% endif %}
+    </p>
+    {% if report.elicitation.reviewer_values %}
+      <table>
+        <thead><tr><th>Field</th><th>Reviewer value</th></tr></thead>
+        <tbody>
+        {% for key, value in report.elicitation.reviewer_values.items() %}
+          <tr><td><code>{{ key }}</code></td><td>{{ value }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </section>
+
+  {% if report.guardrail_events %}
+  <section>
+    <h2>Responsible-AI guardrails</h2>
+    <table>
+      <thead><tr><th>Guardrail</th><th>Triggered</th><th>Action</th><th>Detail</th></tr></thead>
+      <tbody>
+      {% for event in report.guardrail_events %}
+        <tr>
+          <td>{{ event.guardrail }}</td>
+          <td><span class="pill {{ 'Warning' if event.triggered else 'ok' }}">
+            {{ 'yes' if event.triggered else 'no' }}</span></td>
+          <td>{{ event.action }}</td>
+          <td class="muted">{{ event.detail }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if report.analytics %}
+  <section>
+    <h2>Analytics (Secondary MCP Server :8201)</h2>
+    <table>
+      <tbody>
+      {% for key, value in report.analytics.items() %}
+        {% if value is not mapping and value is not sequence or value is string %}
+        <tr><th style="width:35%">{{ key.replace('_',' ')|title }}</th><td>{{ value }}</td></tr>
+        {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Audit trail ({{ report.audit_trail|length }} steps)</h2>
+    <table>
+      <thead><tr><th>#</th><th>Step</th><th>Actor</th><th>Framework</th><th>Status</th>
+                 <th style="text-align:right">ms</th><th>LangFuse trace</th></tr></thead>
+      <tbody>
+      {% for entry in report.audit_trail %}
+        <tr>
+          <td class="muted">{{ loop.index }}</td>
+          <td>{{ entry.step }}</td>
+          <td>{{ entry.actor }}</td>
+          <td class="muted">{{ entry.framework }}</td>
+          <td><span class="pill {{ 'ok' if entry.status == 'ok' else 'Critical' }}">{{ entry.status }}</span></td>
+          <td style="text-align:right">{{ entry.duration_ms if entry.duration_ms is not none else '—' }}</td>
+          <td class="muted"><code>{{ (entry.langfuse_trace_id or '—')[:16] }}</code></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    Rules version <code>{{ report.rules_version }}</code>
+    &middot; LangFuse trace <code>{{ report.trace_id or 'n/a' }}</code>
+    {% if trace_url %}&middot; <a href="{{ trace_url }}">open trace</a>{% endif %}
+    <br>
+    Generated by the Agentic AI Discharge Summary system. This audit report is a
+    decision-support artefact and does not replace clinical judgement.
+  </footer>
+
+</div>
+</body>
+</html>

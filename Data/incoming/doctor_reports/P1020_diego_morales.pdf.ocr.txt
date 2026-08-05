@@ -1,0 +1,58 @@
+================================================================
+CENTRO MÉDICO REGIONAL ST. MARIAN  —  RESUMEN DE ALTA
+================================================================
+
+ID del Paciente:      P1020
+Nombre:               Diego Morales
+Fecha de Nacimiento:  1968-02-10
+Sexo:                 Masculino
+Género:               Masculino
+Edad:                 58
+Fecha de Ingreso:     2026-05-24
+Fecha de Alta:        2026-05-28
+Sala:                 3A
+Cama:                 9
+Línea de Servicio:    Medicina General
+Médico Tratante:      Dra. Sofia Ramirez, MD
+Médicos Consultores:  Dr. Hernandez (Endocrinología); Dra. Ramirez (Medicina General)
+Idioma del Registro:  Español
+Alta Aprobada:        SÍ
+
+----------------------------------------------------------------
+DIAGNÓSTICO DE ALTA
+----------------------------------------------------------------
+1. Diabetes Mellitus Tipo 2 (DM2) — ICD-10: E11.9
+2. Hipertensión Esencial (HTA)   — ICD-10: I10
+
+----------------------------------------------------------------
+ALERGIAS
+----------------------------------------------------------------
+- Sin alergias conocidas (NKDA)
+
+----------------------------------------------------------------
+RECETAS DE ALTA
+----------------------------------------------------------------
+Sl.No | Nombre Medicamento | Concentración | Dosis | Frecuencia | Vía | Periodo | Observaciones | Cantidad
+1 | Metformina | 500 mg | 1 tableta | BID | ORAL | 30 días | Con las comidas | 60
+2 | Lisinopril | 10 mg | 1 tableta | QD | ORAL | 30 días | Controlar la presión | 30
+3 | Atorvastatina | 20 mg | 1 tableta | QHS | ORAL | 30 días | Por la noche | 30
+4 | Aspirina | 81 mg | 1 tableta | QD | ORAL | 30 días | Cardioprotector | 30
+
+----------------------------------------------------------------
+CITA DE SEGUIMIENTO
+----------------------------------------------------------------
+- Clínica de Endocrinología el 2026-06-11 con Dr. Hernandez.
+- Control con médico de cabecera el 2026-06-04 con Dra. Ramirez.
+
+----------------------------------------------------------------
+INSTRUCCIONES DE ALTA
+----------------------------------------------------------------
+- Continuar con dieta para diabéticos y caminar 30 minutos 5 veces por semana.
+- Automonitoreo diario de presión arterial y glucosa; registrar las lecturas.
+- Tomar todos los medicamentos exactamente como se recetaron.
+- Regrese a urgencias por dolor de pecho, dificultad respiratoria grave o glucosa > 300.
+- Consejería farmacéutica completada para todos los medicamentos al alta.
+
+================================================================
+Fin del Documento — generado 2026-05-28 10:15 IST
+================================================================

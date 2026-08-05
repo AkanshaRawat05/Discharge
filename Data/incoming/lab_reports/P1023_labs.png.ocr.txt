@@ -1,0 +1,26 @@
+HERITAGE CLINICAL LABORATORIES  —  LABORATORY REPORT
+
+Performing Lab:       Heritage Clinical Laboratories
+Accreditation:        CAP / CLIA #38D5519064
+Patient ID:           P1023
+Patient Name:         Grace Bennett
+Date of Birth:        1979-04-18
+Sex:                  Female
+Ordering Physician:   Dr. Olivia Hart, MD
+Specimen Collected:   2026-06-12
+Reported:             2026-06-13
+Report Language:      English
+
+LABORATORY RESULTS
+Test             | Result | Units | Reference Range | Flag
+HbA1c            | 5.4    | %     | 4.0 - 5.6       | NORMAL
+LDL Cholesterol  | 92     | mg/dL | < 100           | NORMAL
+Fasting Glucose  | 94     | mg/dL | 70 - 99         | NORMAL
+Creatinine       | 0.8    | mg/dL | 0.6 - 1.1       | NORMAL
+Potassium        | 4.1    | mmol/L| 3.5 - 5.1       | NORMAL
+
+COMMENT
+All laboratory values are within normal limits. No abnormal findings
+requiring documented follow-up action.
+
+End of Laboratory Report — Heritage Clinical Laboratories
