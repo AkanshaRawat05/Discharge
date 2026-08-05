@@ -68,6 +68,8 @@ fastapi>=0.115.0
 uvicorn>=0.30.0
 
 # --- User interfaces ---------------------------------------------------------
-streamlit>=1.38.0
+# The HITL console needs st.navigation/st.Page for its gated flow, and the
+# `width="stretch"` layout API the views already use throughout.
+streamlit>=1.43.0
 pandas>=2.2.0
 gradio>=4.44.0

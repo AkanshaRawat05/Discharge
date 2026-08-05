@@ -1,8 +1,12 @@
 """
-Page 1 — Document Viewer.
+View 1 — Document Viewer  (flow entry point).
 
 Patient selector · tab view (discharge / lab / bill) · language detection badge ·
-structured data preview · process trigger button.
+structured data preview · process trigger.
+
+Pressing *Process* runs extraction → normalisation → validation, folds the
+result into the flow state (which unlocks the later steps) and routes straight
+to view 2.
 """
 
 from __future__ import annotations
@@ -16,26 +20,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
     get_case,
+    goto,
     language_badge,
     page_setup,
-    patient_selector,
-    run_async,
-    settings,
-    sidebar_status,
     store_pipeline_result,
-    trace_link,
+    stream_pipeline,
 )
 from discharge_ai.common.doc_loader import load_patient_documents  # noqa: E402
-from discharge_ai.pipeline import run_pipeline  # noqa: E402
 
 page_setup(
     "1 · Document Viewer",
     "Inspect what the hospital sent us, then hand the case to the agents.",
 )
-sidebar_status()
 
-patient_id = patient_selector()
+patient_id = st.session_state.get("patient_id")
 if not patient_id:
+    st.info("Select a patient in the sidebar to begin.")
     st.stop()
 
 documents = load_patient_documents(patient_id)
@@ -186,13 +186,14 @@ with tabs[-1]:
 st.divider()
 
 # --------------------------------------------------------------------------- #
-#  Process trigger
+#  Process trigger  →  routes to view 2
 # --------------------------------------------------------------------------- #
 st.subheader("Process this patient")
 st.caption(
     "Runs Clinical Extractor → Clinical Normalizer → Clinical Validation "
     "→ Discharge Summary Generator. In **a2a** mode each agent is called over "
-    "the A2A protocol; in **local** mode the handlers run in this process."
+    "the A2A protocol; in **local** mode the handlers run in this process. "
+    "You are taken to **2 · Validation Report** when it finishes."
 )
 
 controls = st.columns([1, 1, 1, 2])
@@ -207,57 +208,32 @@ force_summary = controls[2].checkbox(
 )
 
 if controls[3].button("▶ Process this patient", type="primary", width="stretch"):
-    progress_box = st.empty()
-    lines: list[str] = []
+    mode = st.session_state["execution_mode"]
+    status_box = st.status(f"Processing {patient_id} in {mode} mode…", expanded=True)
+    result = None
 
-    def _progress(stage: str, message: str) -> None:
-        lines.append(f"**{stage}** — {message}")
-        progress_box.markdown("\n\n".join(lines[-8:]))
+    with status_box:
+        for kind, payload, message in stream_pipeline(
+            patient_id,
+            mode=mode,
+            generate_summary=generate_summary,
+            force_summary=force_summary,
+            use_llm_extraction=use_llm,
+        ):
+            if kind == "progress":
+                st.markdown(f"**{payload}** — {message}")
+            elif kind == "result":
+                result = payload
 
-    with st.spinner(f"Processing {patient_id} in {st.session_state['execution_mode']} mode…"):
-        result = run_async(
-            run_pipeline(
-                patient_id,
-                mode=st.session_state["execution_mode"],
-                generate_summary=generate_summary,
-                force_summary=force_summary,
-                use_llm_extraction=use_llm,
-                progress=_progress,
-            )
-        )
-
-    store_pipeline_result(result)
-    st.session_state["force_case_refresh"] = False
-
-    if result.report is None:
-        st.error("Processing failed:\n\n" + "\n".join(f"- {e}" for e in result.errors))
+    if result is None or result.report is None:
+        errors = result.errors if result is not None else ["the pipeline produced no result"]
+        status_box.update(label=f"Processing {patient_id} failed", state="error")
+        st.error("Processing failed:\n\n" + "\n".join(f"- {e}" for e in errors))
     else:
-        risk = result.report.risk
-        if risk.discharge_blocked:
-            st.error(
-                f"**Discharge BLOCKED** — risk {risk.level.value} "
-                f"(score {risk.score}). {risk.recommendation_text}"
-            )
-        elif risk.hitl_required:
-            st.warning(
-                f"**Human review required** — risk {risk.level.value} "
-                f"(score {risk.score}). {risk.recommendation_text}"
-            )
-        else:
-            st.success(
-                f"**Cleared for auto-release** — risk {risk.level.value} "
-                f"(score {risk.score}). {risk.recommendation_text}"
-            )
-
-        if result.errors:
-            with st.expander("Degraded steps"):
-                for error in result.errors:
-                    st.markdown(f"- {error}")
-
-        trace_link(result.trace_id)
-        st.info(
-            "Open **2 · Validation Report** for the findings, "
-            "**3 · HITL Corrections** to intervene, or "
-            "**5 · Discharge Summary** for the patient letter."
+        store_pipeline_result(result)
+        st.session_state["force_case_refresh"] = False
+        status_box.update(
+            label=f"{patient_id} processed — opening the validation report",
+            state="complete",
         )
-
+        goto("validation")

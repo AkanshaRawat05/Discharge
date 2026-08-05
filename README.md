@@ -330,32 +330,42 @@ The dataset is built so each patient exercises a different failure mode.
 
 ### A clean, auto-approved discharge — `P1019`
 
-1. Open the dashboard → **1 · Document Viewer**, pick `P1019`.
+1. Open the dashboard, pick `P1019` in the sidebar. Only **1 · Document Viewer**
+   and **4 · RAG Q&A** are unlocked — the later steps stay greyed out until the
+   pipeline has actually put the case there.
 2. Note the tabs (discharge report / lab report / bill) and the language badge.
-3. Press **▶ Process this patient**.
-4. → *Cleared for auto-release*, risk **Low**, score **0**, completeness **100%**.
-5. **2 · Validation Report** — no findings, full audit trail, LangFuse trace link.
+3. Press **▶ Process this patient**. A live stage log runs as the agents report
+   in, then you are routed straight to view 2.
+4. → *CLEARED FOR RELEASE*, risk **Low**, score **0**, completeness **100%**.
+5. **2 · Validation Report** — no findings, full audit trail, LangFuse trace
+   link, and a **View Discharge Summary** button (it only appears because the
+   discharge is not blocked).
 6. **5 · Discharge Summary** — a plain-English letter with a "how often / how to
    take" prescription table and colour-coded labs. Export JSON / HTML / PDF.
 
 ### A blocked discharge — `P1022` (Dutch, handwritten)
 
 1. Process `P1022`.
-2. → **🛑 Discharge BLOCKED**, risk **High**, score 20.
+2. → **🛑 DISCHARGE BLOCKED** — rendered as the dominant element on view 2 —
+   risk **High**, score 20.
 3. **2 · Validation Report** shows the Critical finding: the note prescribes
    *Amoxicilline* while the EHR allergy registry records **Penicillin** — the
    system canonicalises both to the penicillin class and blocks release.
 4. It also flags Dutch translation confidence below the 0.70 minimum, and three
    missing non-blocking fields (age, doctors, approver).
-5. **5 · Discharge Summary** refuses to generate anything.
+5. **5 · Discharge Summary** is **locked in the sidebar** — there is no route to
+   it, and the only call-to-action on view 2 is *Resolve in HITL Corrections*.
 6. **3 · HITL Corrections**:
    * correct the medication table (`st.data_editor`);
    * fill the **Elicitation Response Form** — this form *is* the MCP
-     `elicitation_callback`; choose `accept`, `decline` or `cancel`;
+     `elicitation_callback`, and every input is generated from the schema the
+     server sent, not hardcoded; choose `accept`, `decline` or `cancel`;
    * override the risk label, record your decision and clinical note;
-   * **Save feedback** → `Data/feedback/P1022_feedback.json`;
-   * **Re-run validation** → the MCP elicitation round-trip replays with your
-     chosen action and the risk score is recomputed.
+   * **Save feedback** → `Data/feedback/P1022_feedback.json`. Approving here is
+     the HITL sign-off that unlocks view 5 for a case the pipeline refused;
+   * **Re-run validation** → a live progress bar and stage log while the MCP
+     elicitation round-trip replays with your chosen action and the risk score
+     is recomputed, then you are routed back to view 2 with the new result.
 
 ### Other interesting cases
 
@@ -481,7 +491,7 @@ change anywhere.
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  USER LAYER                                                              │
-│  Streamlit HITL Dashboard :8501  (5 pages)                               │
+│  Streamlit HITL Dashboard :8501  (5-step gated flow)                     │
 └───────────────────────────────┬──────────────────────────────────────────┘
                                 │  A2A / HTTP
 ┌───────────────────────────────▼──────────────────────────────────────────┐
@@ -544,7 +554,7 @@ Monitor (Roots)
 | Summary Generator Agent | 8104 | **A2A STREAMING** | Google ADK | Patient-friendly summary |
 | Clinical RAG Q&A Agent | 8105 | **A2A STREAMING** | Agno | 5-role RAG, MultiMCPTools + SQLite |
 | Host Orchestrator | 8083 | Gradio + A2A client | Google ADK | Coordinate all agents |
-| Streamlit HITL Dashboard | 8501 | HTTP | Streamlit | 5-page human review interface |
+| Streamlit HITL Dashboard | 8501 | HTTP | Streamlit | 5-step human review flow, gated by pipeline state |
 
 Every A2A agent publishes its AgentCard at `GET /.well-known/agent.json` and a
 health probe at `GET /health`. All non-discovery A2A routes require the
@@ -581,14 +591,15 @@ Ai_Discharge_Summary/
 │   └── sessions/                  Agno SQLite session store
 │
 ├── dashboard/
-│   ├── app.py                     landing page + service status
-│   ├── common.py                  shared UI atoms and session state
-│   └── pages/
-│       ├── 1_Document_Viewer.py
-│       ├── 2_Validation_Report.py
-│       ├── 3_HITL_Corrections.py
-│       ├── 4_RAG_QA.py
-│       └── 5_Discharge_Summary.py
+│   ├── app.py                     entry point — st.navigation, gated by flow state
+│   ├── common.py                  session state, gating rules, streaming bridge, UI atoms
+│   └── views/
+│       ├── 0_Overview.py          worklist + service status
+│       ├── 1_Document_Viewer.py   entry step — runs the pipeline
+│       ├── 2_Validation_Report.py the release decision
+│       ├── 3_HITL_Corrections.py  streaming re-run
+│       ├── 4_RAG_QA.py            streaming answers (never gated)
+│       └── 5_Discharge_Summary.py locked until blocked=false
 │
 └── src/discharge_ai/
     ├── settings.py                central config (.env + agent_config.yaml)
@@ -1031,7 +1042,7 @@ path:
 | Change the Bedrock model or region | `.env` — see [§8](#8-amazon-bedrock-configuration); `llm/provider.py` is the only vendor-aware file |
 | Swap the embedding model | `EMBEDDING_PROVIDER` in `.env` |
 | Add a guardrail | New module in `guardrails/`, wire it into `GuardrailManager` |
-| Add a dashboard page | `dashboard/pages/6_Your_Page.py` (Streamlit picks it up automatically) |
+| Add a dashboard view | `dashboard/views/6_Your_View.py`, then register it in `pages` in `dashboard/app.py` and add a `NAV_ITEMS` entry (plus a `page_unlocked()` rule if it should be gated) |
 
 ---
 

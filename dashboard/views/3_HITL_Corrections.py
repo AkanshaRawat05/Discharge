@@ -1,9 +1,14 @@
 """
-Page 3 — HITL Corrections.
+View 3 — HITL Corrections.
 
 Editable medication table (`st.data_editor`) · **Elicitation Response Form**
-(dynamic, schema-driven — this page is the MCP `elicitation_callback`) · risk
+(dynamic, schema-driven — this view is the MCP `elicitation_callback`) · risk
 label override · approval decision · save feedback · re-run validation.
+
+The re-run is one of the two real-time touchpoints: it drives a live progress
+bar and a stage log fed by the pipeline's own progress callbacks as they happen
+(see `common.stream_pipeline`), rather than hiding the run behind a spinner.
+When it finishes, the reviewer is routed back to view 2 with the new result.
 """
 
 from __future__ import annotations
@@ -19,31 +24,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
     findings_table,
+    flow_state,
     get_case,
     get_report,
+    goto,
+    mark_signed_off,
     no_report_warning,
     page_setup,
-    patient_selector,
+    render_elicitation_form,
+    require_page,
     risk_badge,
-    run_async,
     settings,
-    sidebar_status,
     store_pipeline_result,
-    trace_link,
+    stream_pipeline,
 )
 from discharge_ai.common.schemas import Medication  # noqa: E402
-from discharge_ai.pipeline import run_pipeline  # noqa: E402
 from discharge_ai.validation import elicitation_schema_for  # noqa: E402
 
 page_setup(
     "3 · HITL Corrections",
     "Correct the record, answer the elicitation request, and record your decision.",
 )
-sidebar_status()
 
-patient_id = patient_selector()
-if not patient_id:
-    st.stop()
+patient_id = require_page("corrections")
 
 case = get_case(patient_id)
 report = get_report(patient_id)
@@ -52,6 +55,7 @@ if report is None:
     st.stop()
 
 risk = report.risk
+state = flow_state(patient_id)
 
 # --------------------------------------------------------------------------- #
 #  Context banner
@@ -127,7 +131,9 @@ if not non_blocking:
     elicitation_answers: dict[str, object] = {}
     elicitation_action = "not_requested"
 else:
-    #  The schema the Rules Engine tool sends over MCP is what we render.
+    #  Whatever schema the Rules Engine tool sent over MCP is what we render —
+    #  no field is hardcoded here. Fall back to rebuilding it locally only if
+    #  the report did not capture the schema.
     schema = report.elicitation.schema_sent
     if not schema:
         _model, schema = elicitation_schema_for(non_blocking)
@@ -136,48 +142,21 @@ else:
     st.caption(
         f"The Clinical Rules Engine tool requested **{len(properties)}** value(s) "
         "through the MCP Elicitation primitive. This form is the "
-        "`elicitation_callback`: your response is returned to the MCP server as "
-        "an `ElicitResult` with action `accept`, `decline` or `cancel`."
+        "`elicitation_callback`: every input below is generated from the "
+        "schema's own field name, type and description, and your response goes "
+        "back to the MCP server as an `ElicitResult` with action `accept`, "
+        "`decline` or `cancel`."
     )
 
     with st.expander("Schema received from the MCP server"):
         st.json(schema, expanded=False)
 
-    elicitation_answers = {}
-    columns = st.columns(2)
-    for index, (key, spec) in enumerate(properties.items()):
-        description = spec.get("description", key)
-        #  Optional fields come through as anyOf[type, null].
-        types = [
-            entry.get("type") for entry in spec.get("anyOf", [])
-            if isinstance(entry, dict)
-        ] or [spec.get("type", "string")]
-        field_type = next((t for t in types if t and t != "null"), "string")
+    elicitation_answers = render_elicitation_form(
+        schema, key_prefix=f"elicit-{patient_id}"
+    )
 
-        with columns[index % 2]:
-            if field_type == "integer":
-                value = st.number_input(
-                    description, min_value=0, max_value=130, step=1, value=None,
-                    key=f"elicit-{patient_id}-{key}", placeholder="leave blank if unknown",
-                )
-            elif field_type == "number":
-                value = st.number_input(
-                    description, value=None, key=f"elicit-{patient_id}-{key}",
-                    placeholder="leave blank if unknown",
-                )
-            elif field_type == "boolean":
-                choice = st.selectbox(
-                    description, ["(unknown)", "Yes", "No"],
-                    key=f"elicit-{patient_id}-{key}",
-                )
-                value = None if choice == "(unknown)" else (choice == "Yes")
-            else:
-                value = st.text_input(
-                    description, value="", key=f"elicit-{patient_id}-{key}",
-                    placeholder="leave blank if unknown",
-                )
-            if value not in (None, ""):
-                elicitation_answers[key] = value
+    if elicitation_answers:
+        st.caption(f"{len(elicitation_answers)} of {len(properties)} value(s) supplied.")
 
     elicitation_action = st.radio(
         "Your response to the elicitation request",
@@ -240,6 +219,9 @@ st.divider()
 #  4. Save feedback / re-run validation
 # --------------------------------------------------------------------------- #
 st.subheader("4 · Save and re-run")
+
+APPROVING = {"Approve", "Approve with edits"}
+
 
 def _feedback_payload() -> dict:
     return {
@@ -304,10 +286,35 @@ if buttons[0].button("💾 Save feedback", width="stretch"):
     path.write_text(json.dumps(history, indent=2, default=str), encoding="utf-8")
 
     st.session_state["feedback"][patient_id] = payload
+
+    #  An explicit approval is the HITL sign-off that unlocks view 5 for a case
+    #  the pipeline itself refused to release.
+    if approval in APPROVING:
+        mark_signed_off(patient_id, reviewer, approved=True)
+    elif approval == "Reject":
+        mark_signed_off(patient_id, reviewer, approved=False)
+
     st.success(
         f"Feedback saved to `{path.name}` ({count} medication row(s) applied to "
         "the working case)."
     )
+    if approval in APPROVING and risk.discharge_blocked:
+        st.info(
+            "Sign-off recorded — **5 · Discharge Summary** is now unlocked for "
+            "this case despite the block."
+        )
+
+# --------------------------------------------------------------------------- #
+#  Re-run — live streaming progress, then route back to view 2
+# --------------------------------------------------------------------------- #
+#  Fractions the progress bar walks through as each pipeline stage reports in.
+STAGE_PROGRESS = {
+    "extract": 0.20,
+    "normalise": 0.40,
+    "validate": 0.65,
+    "summarise": 0.85,
+    "index": 0.95,
+}
 
 if buttons[1].button("🔁 Re-run validation", type="primary", width="stretch"):
     _apply_medication_edits()
@@ -320,52 +327,61 @@ if buttons[1].button("🔁 Re-run validation", type="primary", width="stretch"):
     elif elicitation_action == "cancel":
         kwargs["elicitation_cancel"] = True
 
-    force = approval in {"Approve", "Approve with edits"}
+    force = approval in APPROVING
 
-    progress_box = st.empty()
-    lines: list[str] = []
+    #  Live indicator: a real progress bar plus a stage log that grows as the
+    #  agents report in, not a spinner that hides the whole run.
+    st.markdown("**Re-running the pipeline with your corrections**")
+    progress_bar = st.progress(0.0, text="starting…")
+    log_box = st.empty()
+    stage_log: list[str] = []
+    result = None
 
-    def _progress(stage: str, message: str) -> None:
-        lines.append(f"**{stage}** — {message}")
-        progress_box.markdown("\n\n".join(lines[-8:]))
-
-    with st.spinner("Re-running validation with your corrections…"):
-        result = run_async(
-            run_pipeline(
-                patient_id,
-                mode=st.session_state["execution_mode"],
-                generate_summary=True,
-                force_summary=force,
-                use_llm_extraction=False,     # keep the reviewer's values verbatim
-                trace_id=report.trace_id,
-                progress=_progress,
-                **kwargs,
+    for kind, payload, message in stream_pipeline(
+        patient_id,
+        mode=st.session_state["execution_mode"],
+        generate_summary=True,
+        force_summary=force,
+        use_llm_extraction=False,     # keep the reviewer's values verbatim
+        trace_id=report.trace_id,
+        **kwargs,
+    ):
+        if kind == "progress":
+            stage, text = payload, message
+            progress_bar.progress(
+                STAGE_PROGRESS.get(stage, 0.5), text=f"{stage} — {text}"
             )
-        )
+            stage_log.append(f"- **{stage}** — {text}")
+            log_box.markdown("\n".join(stage_log[-10:]))
+        elif kind == "result":
+            result = payload
 
-    store_pipeline_result(result)
+    progress_bar.progress(1.0, text="done")
 
-    if result.report is None:
-        st.error("Re-run failed:\n\n" + "\n".join(f"- {e}" for e in result.errors))
+    if result is None or result.report is None:
+        errors = result.errors if result is not None else ["the pipeline produced no result"]
+        st.error("Re-run failed:\n\n" + "\n".join(f"- {e}" for e in errors))
     else:
+        store_pipeline_result(result)
+        if force:
+            #  Sign-off survives the re-validation the reviewer just authorised.
+            mark_signed_off(patient_id, reviewer, approved=True)
+
         new_risk = result.report.risk
+        delta = new_risk.score - risk.score
         st.success(
-            f"Re-validated: risk **{new_risk.level.value}** (score {new_risk.score}), "
-            f"{len(result.report.findings)} finding(s), "
+            f"Re-validated: risk **{new_risk.level.value}** (score {new_risk.score}, "
+            f"{delta:+d}), {len(result.report.findings)} finding(s), "
             f"elicitation outcome **{result.report.elicitation.outcome.value}**."
         )
-        delta = new_risk.score - risk.score
-        if delta:
-            st.metric("Risk score change", new_risk.score, delta=delta, delta_color="inverse")
-        if result.summary is not None:
-            st.info("A discharge summary was generated — see **5 · Discharge Summary**.")
-        trace_link(result.report.trace_id)
+        goto("validation")
 
 with buttons[2]:
     st.caption(
         "**Re-run** replays the MCP Elicitation round-trip with your chosen "
         "action, so `accept` / `decline` / `cancel` are all exercised for real "
-        "against the Clinical Rules Engine tool on the primary MCP server."
+        "against the Clinical Rules Engine tool on the primary MCP server. "
+        "You are returned to **2 · Validation Report** with the new result."
     )
 
 # --------------------------------------------------------------------------- #

@@ -1,9 +1,16 @@
 """
-Page 4 — RAG Q&A.
+View 4 — RAG Q&A.
 
-Global patient selector · question input with patient filter · example queries ·
-prompt-injection indicator · streaming response · source documents · RAG Triad
-quality metrics · guardrail activity · session history.
+Never gated by the pipeline: this view queries the FAISS index, so it only needs
+documents to be indexed, not a particular patient to have reached a stage.
+
+Question input with patient filter · example queries · prompt-injection
+indicator · **token-by-token streaming answer** · source documents · RAG Triad
+metrics tucked into a small expander · guardrail activity · session history.
+
+This is the second real-time touchpoint (matching the streaming RAG agent on
+:8105): tokens are painted into a placeholder as they arrive off the wire
+rather than being buffered until the run finishes.
 """
 
 from __future__ import annotations
@@ -20,14 +27,12 @@ from common import (  # noqa: E402
     available_patients,
     guardrail_table,
     page_setup,
-    patient_selector,
-    run_async,
     settings,
-    sidebar_status,
+    stream_async,
     trace_link,
 )
 from discharge_ai.agents import rag_agent  # noqa: E402
-from discharge_ai.rag import indexing, reflection, retrieval  # noqa: E402
+from discharge_ai.rag import indexing, retrieval  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -35,10 +40,14 @@ page_setup(
     "4 · RAG Q&A",
     "Ask the indexed patient records. Answers are grounded, cited and scored.",
 )
-sidebar_status()
 
-patient_id = patient_selector()
+patient_id = st.session_state.get("patient_id")
 patients = available_patients()
+
+st.caption(
+    "🔓 Available at any point in the review — it reads the vector index, not "
+    "the pipeline state."
+)
 
 EXAMPLE_QUERIES = [
     "What medications was {pid} discharged on and at what doses?",
@@ -133,49 +142,55 @@ for idx, example in enumerate(example_queries):
 ask = st.button("🔎 Ask", type="primary")
 
 # --------------------------------------------------------------------------- #
-#  Answer
+#  Answer — streamed token by token
 # --------------------------------------------------------------------------- #
 if ask and question.strip():
     scope = None if patient_filter == "(all patients)" else patient_filter
 
-    collected: list[str] = []
-    result_box: dict[str, object] = {"payload": None, "error": None}
-
-    async def _stream() -> None:
+    def _events():
         from types import SimpleNamespace
 
         ctx = SimpleNamespace(trace_id=None)
         payload = {"question": question, "top_k": top_k}
         if scope:
             payload["patient_id"] = scope
+        return rag_agent.handle(payload, ctx)
 
-        async for event in rag_agent.handle(payload, ctx):
-            if event.final:
-                result_box["payload"] = event.data
-            elif event.text:
+    st.subheader("Answer")
+    answer_box = st.empty()
+    answer_box.caption("Retrieving…")
+
+    collected: list[str] = []
+    payload: dict = {}
+    error: Exception | None = None
+
+    try:
+        for event in stream_async(_events):
+            if getattr(event, "final", False):
+                payload = event.data or {}
+            elif getattr(event, "text", ""):
                 collected.append(event.text)
+                #  Repaint on every chunk — this is the token-by-token display.
+                answer_box.markdown("".join(collected) + " ▌")
+    except Exception as exc:  # noqa: BLE001
+        error = exc
+        log.warning("RAG Q&A pipeline error: %s", exc, exc_info=True)
 
-    with st.spinner("Retrieving, generating and scoring…"):
-        try:
-            run_async(_stream())
-        except Exception as exc:  # noqa: BLE001
-            result_box["error"] = exc
-            log.warning("RAG Q&A pipeline error: %s", exc, exc_info=True)
-
-    if result_box["error"]:
+    if error is not None:
+        answer_box.empty()
         st.error(
-            f"The RAG pipeline encountered an error: **{result_box['error']}**\n\n"
+            f"The RAG pipeline encountered an error: **{error}**\n\n"
             "This usually happens when the vector index hasn't been built yet or "
-            "the LLM API quota is exhausted. Try pressing **Rebuild the FAISS index** "
-            "above, or wait for the API quota to reset."
+            "the Bedrock quota is exhausted. Try pressing **Rebuild the FAISS "
+            "index** above, or wait for the quota to reset."
         )
     else:
         streamed = "".join(collected).strip()
-        payload = result_box["payload"] or {}
         answer = payload.get("answer") or streamed or "(no answer produced)"
 
         # ---- prompt-injection indicator --------------------------------
         if payload.get("blocked_by_guardrail"):
+            answer_box.empty()
             st.error(
                 "🛡️ **Prompt-injection guard: REJECTED.** Patterns matched: "
                 + ", ".join(payload.get("patterns_matched", []))
@@ -189,59 +204,60 @@ if ask and question.strip():
         else:
             st.caption("🛡️ Prompt-injection guard: no injection pattern matched.")
 
-        # ---- answer ----------------------------------------------------
-        st.subheader("Answer")
-        if payload.get("out_of_context"):
-            st.info(answer)
-        else:
-            st.markdown(answer)
+        # ---- settle the streamed text on the final, post-guardrail answer
+        if not payload.get("blocked_by_guardrail"):
+            if payload.get("out_of_context"):
+                answer_box.info(answer)
+            else:
+                answer_box.markdown(answer)
 
-        if streamed and streamed != answer and not payload.get("blocked_by_guardrail"):
-            with st.expander("Streamed tokens before guardrail post-processing"):
-                st.text(streamed)
+            if streamed and streamed != answer:
+                with st.expander("Streamed tokens before guardrail post-processing"):
+                    st.text(streamed)
 
-        meta = st.columns(4)
-        meta[0].metric("Chunks used", len(payload.get("chunks", [])))
-        meta[1].metric("Context chars", payload.get("context_chars", 0))
-        meta[2].metric("Scope", payload.get("patient_scope") or "all")
-        meta[3].metric(
-            "Out of context", "yes" if payload.get("out_of_context") else "no"
-        )
-        st.caption(
-            f"Prompt source: `{payload.get('prompt_source', 'n/a')}` (MCP Prompts)"
-        )
-        trace_link(payload.get("trace_id"))
-
-        # ---- RAG Triad -------------------------------------------------
-        st.subheader("RAG Triad quality metrics")
+        # ---- quality, kept deliberately quiet --------------------------
         triad = payload.get("triad") or {}
         thresholds = settings.rag.get("triad_thresholds", {}) or {}
+        passed = bool(triad.get("passed"))
+        faith = float(triad.get("faithfulness", 0.0))
 
-        triad_columns = st.columns(3)
-        for column, (label, tkey, threshold_key) in zip(
-            triad_columns,
-            [
-                ("Faithfulness", "faithfulness", "faithfulness"),
-                ("Answer relevance", "answer_relevance", "answer_relevance"),
-                ("Context relevance", "context_relevance", "context_relevance"),
-            ],
-        ):
-            value = float(triad.get(tkey, 0.0))
-            minimum = float(thresholds.get(threshold_key, 0.7))
-            with column:
-                st.metric(
-                    label, f"{value:.2f}",
-                    delta=f"{value - minimum:+.2f} vs min {minimum:.2f}",
-                    delta_color="normal" if value >= minimum else "inverse",
-                )
-                st.progress(min(1.0, value))
+        st.caption(
+            f"{'🟢' if passed else '🟠'} grounding {faith:.2f} · "
+            f"{len(payload.get('chunks', []))} source(s) · "
+            f"scope {payload.get('patient_scope') or 'all'} · "
+            f"prompt `{payload.get('prompt_source', 'n/a')}` (MCP Prompts)"
+        )
 
-        if payload.get("triad_verdict"):
-            (st.success if triad.get("passed") else st.warning)(
-                payload["triad_verdict"]
+        with st.expander("Answer quality — RAG Triad", expanded=False):
+            triad_columns = st.columns(3)
+            for column, (label, tkey) in zip(
+                triad_columns,
+                [
+                    ("Faithfulness", "faithfulness"),
+                    ("Answer relevance", "answer_relevance"),
+                    ("Context relevance", "context_relevance"),
+                ],
+            ):
+                value = float(triad.get(tkey, 0.0))
+                minimum = float(thresholds.get(tkey, 0.7))
+                with column:
+                    st.caption(
+                        f"**{label}** {value:.2f} "
+                        f"({'≥' if value >= minimum else '<'} min {minimum:.2f})"
+                    )
+                    st.progress(min(1.0, value))
+
+            if payload.get("triad_verdict"):
+                st.caption(payload["triad_verdict"])
+            if triad.get("reasoning"):
+                st.caption(f"Judge reasoning: {triad['reasoning']}")
+            st.caption(
+                f"Context chars: {payload.get('context_chars', 0)} · "
+                f"out of context: {'yes' if payload.get('out_of_context') else 'no'}"
             )
-        if triad.get("reasoning"):
-            st.caption(f"Judge reasoning: {triad['reasoning']}")
+            guardrail_table(payload.get("guardrail_events", []))
+
+        trace_link(payload.get("trace_id"))
 
         # ---- sources ---------------------------------------------------
         st.subheader("Source documents")
@@ -262,10 +278,6 @@ if ask and question.strip():
                 )
                 with st.expander(label):
                     st.text(chunk.get("text", "")[:4000])
-
-        # ---- guardrails ------------------------------------------------
-        st.subheader("Guardrail activity")
-        guardrail_table(payload.get("guardrail_events", []))
 
         # ---- history ---------------------------------------------------
         st.session_state["rag_history"].append(

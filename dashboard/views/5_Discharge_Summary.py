@@ -1,8 +1,13 @@
 """
-Page 5 — Discharge Summary.
+View 5 — Discharge Summary.
 
-Patient-friendly summary for auto-approved cases · plain-English prescription
-table · colour-coded lab results · export JSON / HTML / PDF · LangFuse trace link.
+Reachable only once the case is approved: the discharge is not blocked, or a
+reviewer signed it off on view 3.  `require_page("summary")` enforces that even
+if the view is reached from a stale tab.
+
+Patient-friendly summary · plain-English prescription table · colour-coded lab
+results · export JSON / HTML / PDF · LangFuse trace link.  Rendering here is
+deliberately static — the streaming touchpoints are views 3 and 4.
 """
 
 from __future__ import annotations
@@ -18,17 +23,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
     artefact_downloads,
+    flow_state,
     get_case,
     get_report,
     get_summary,
+    goto,
     guardrail_table,
     no_report_warning,
     page_setup,
-    patient_selector,
+    require_page,
     risk_badge,
     run_async,
     settings,
-    sidebar_status,
     trace_link,
 )
 from discharge_ai.pipeline import stream_summary  # noqa: E402
@@ -38,11 +44,8 @@ page_setup(
     "5 · Discharge Summary",
     "The letter the patient goes home with — plus the exports.",
 )
-sidebar_status()
 
-patient_id = patient_selector()
-if not patient_id:
-    st.stop()
+patient_id = require_page("summary")
 
 case = get_case(patient_id)
 report = get_report(patient_id)
@@ -53,6 +56,12 @@ if report is None:
     st.stop()
 
 risk = report.risk
+state = flow_state(patient_id)
+
+#  Reaching this view means the case is releasable. A blocked case can only be
+#  here on a recorded reviewer sign-off, which is what authorises the override
+#  the pipeline needs to generate at all.
+released_under_override = bool(risk.discharge_blocked and state["approved"])
 
 # --------------------------------------------------------------------------- #
 #  Gate banner
@@ -65,16 +74,17 @@ with gate[1]:
 gate[2].metric("Recommendation", risk.recommendation.value)
 gate[3].metric("Blocked", "YES" if risk.discharge_blocked else "no")
 
-if risk.discharge_blocked:
+if released_under_override:
     st.error(
-        "🛑 **Automatic summary generation is blocked for this discharge.** "
-        "Resolve the Critical findings on **2 · Validation Report**, or record an "
-        "explicit approval on **3 · HITL Corrections**, before releasing a summary "
-        "to the patient."
+        f"🔏 **Released under a reviewer override.** This discharge is still "
+        f"blocked by a Critical finding; **{state['signed_off_by']}** signed it "
+        "off on **3 · HITL Corrections**. The override is recorded in the audit "
+        "trail and the summary must not go to the patient without that "
+        "clinician's confirmation."
     )
 elif risk.hitl_required:
     st.warning(
-        "⚠️ This case requires human review. A summary can be generated, but a "
+        "⚠️ This case requires human review. The summary can be generated, but a "
         "clinician must sign it off before it goes to the patient."
     )
 else:
@@ -85,45 +95,41 @@ st.divider()
 # --------------------------------------------------------------------------- #
 #  Generate / regenerate
 # --------------------------------------------------------------------------- #
-controls = st.columns([1, 1, 1, 2])
+controls = st.columns([1, 1, 3])
 audience = controls[0].selectbox("Audience", ["patient", "clinician"], key="audience")
-force = controls[1].checkbox(
-    "Reviewer override", value=False,
-    help="Generate the summary even though validation blocked the discharge.",
-)
-generate = controls[2].button(
-    "✍️ Generate summary", type="primary", width="stretch",
-    disabled=risk.discharge_blocked and not force,
-)
-controls[3].caption(
+generate = controls[1].button("✍️ Generate summary", type="primary", width="stretch")
+controls[2].caption(
     "The Summary Generator streams section by section over A2A: "
     "patient → medicines → labs → bill → instructions."
+    + (
+        "  \nGeneration runs with the reviewer override recorded on view 3."
+        if released_under_override else ""
+    )
 )
 
 if generate:
-    stream_box = st.empty()
     section_log: list[str] = []
-    final_payload: dict | None = None
+    box: dict = {"payload": None}
 
     async def _run() -> None:
-        global final_payload
-        async for section, text, payload in stream_summary(
+        async for section, _text, payload in stream_summary(
             patient_id, case, report,
             mode=st.session_state["execution_mode"],
-            force=force,
+            force=released_under_override,
             trace_id=report.trace_id,
         ):
             if payload is not None:
-                final_payload = payload
+                box["payload"] = payload
             elif section:
                 section_log.append(section)
 
-    with st.spinner("Streaming the discharge summary…"):
+    with st.spinner("Generating the discharge summary…"):
         run_async(_run())
-        stream_box.markdown(
-            "Streamed sections: " + " → ".join(f"`{s}`" for s in section_log)
-        )
 
+    if section_log:
+        st.caption("Sections written: " + " → ".join(f"`{s}`" for s in section_log))
+
+    final_payload = box["payload"]
     if final_payload and final_payload.get("generated"):
         from discharge_ai.common.schemas import DischargeSummary
 
@@ -132,6 +138,7 @@ if generate:
         st.session_state["artefacts"].setdefault(patient_id, {}).update(
             final_payload.get("artefacts", {})
         )
+        state["summary_ready"] = True
         st.success(
             f"Generated {len(summary.sections)} section(s)."
             + (" (reviewer override)" if final_payload.get("forced") else "")
@@ -144,6 +151,8 @@ if generate:
 
 if summary is None:
     st.info("No summary has been generated for this patient yet.")
+    if st.button("← Back to 2 · Validation Report"):
+        goto("validation")
     st.stop()
 
 st.divider()

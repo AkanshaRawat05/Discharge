@@ -1,8 +1,15 @@
 """
-Page 2 — Validation Report.
+View 2 — Validation Report.
 
-Completeness score (colour-coded) · cross-validation issues table · risk level
-badge · recommendation · discharge-blocked indicator · LangFuse trace link.
+The release decision is the headline: `decision_hero()` renders it far larger
+and at higher contrast than anything else on the page, because "is this
+discharge blocked?" is the one thing a reviewer must not miss.
+
+Below it: completeness score (colour-coded), cross-validation issues, risk tier,
+recommendation, missing fields, analytics, guardrails and the audit trail.
+
+The single call-to-action routes on state — blocked cases go to view 3 to be
+resolved, cleared cases go to view 5 for the patient letter.
 """
 
 from __future__ import annotations
@@ -16,16 +23,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
     audit_trail_table,
+    decision_hero,
     findings_table,
+    flow_state,
     get_report,
+    goto,
     guardrail_table,
     language_badge,
     no_report_warning,
     page_setup,
-    patient_selector,
+    require_page,
     risk_badge,
-    settings,
-    sidebar_status,
+    sync_flow_from_report,
     trace_link,
 )
 from discharge_ai.common.rules import risk_thresholds  # noqa: E402
@@ -34,35 +43,67 @@ page_setup(
     "2 · Validation Report",
     "Completeness, EHR cross-validation, risk tier and the release decision.",
 )
-sidebar_status()
 
-patient_id = patient_selector()
-if not patient_id:
-    st.stop()
+patient_id = require_page("validation")
 
 report = get_report(patient_id)
 if report is None:
     no_report_warning(patient_id)
     st.stop()
 
+#  Keep the flow in step with whatever report we are actually showing.
+sync_flow_from_report(patient_id, report)
+state = flow_state(patient_id)
+
 risk = report.risk
 thresholds = risk_thresholds()
 
 # --------------------------------------------------------------------------- #
-#  Decision banner
+#  Decision — the dominant element on the page
 # --------------------------------------------------------------------------- #
-if risk.discharge_blocked:
-    st.error(
-        f"### 🛑 Discharge BLOCKED\n{risk.recommendation_text or 'Human review required.'}"
-        + (
-            "\n\n**Hard guardrails triggered:** " + ", ".join(risk.hard_guardrails_hit)
-            if risk.hard_guardrails_hit else ""
+decision = decision_hero(report)
+
+# --------------------------------------------------------------------------- #
+#  Next step  (state-gated: the summary route only exists when not blocked)
+# --------------------------------------------------------------------------- #
+action = st.columns([2, 3])
+
+with action[0]:
+    if decision == "blocked":
+        if st.button("🛠 Resolve in HITL Corrections", type="primary",
+                     width="stretch", key="route-corrections"):
+            goto("corrections")
+    else:
+        if st.button("📄 View Discharge Summary", type="primary",
+                     width="stretch", key="route-summary"):
+            goto("summary")
+
+with action[1]:
+    if decision == "blocked":
+        st.caption(
+            "A blocked discharge cannot produce a patient summary. Correct the "
+            "record, answer the elicitation request and re-run validation on "
+            "**3 · HITL Corrections** — or sign the case off explicitly there if "
+            "you are overriding the guardrail."
         )
-    )
-elif risk.hitl_required:
-    st.warning(f"### ⚠️ Human review required\n{risk.recommendation_text}")
-else:
-    st.success(f"### ✅ Cleared for auto-release\n{risk.recommendation_text}")
+        if state["approved"]:
+            st.info(
+                f"Signed off by **{state['signed_off_by']}** — the summary step "
+                "has been unlocked despite the block."
+            )
+    elif decision == "hitl":
+        st.caption(
+            "This case is not blocked, so the summary is available — but it "
+            "needs a clinician's sign-off before it goes to the patient. Record "
+            "that on **3 · HITL Corrections**."
+        )
+    else:
+        st.caption("Cleared for auto-release — the patient letter is ready to review.")
+
+    if st.button("Open 3 · HITL Corrections", key="route-corrections-secondary"):
+        goto("corrections")
+
+st.divider()
 
 # --------------------------------------------------------------------------- #
 #  Metric band
