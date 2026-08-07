@@ -853,9 +853,9 @@ def decision_hero(report: Any) -> str:
     #  able to miss a block — but carried by a heavy accent rule and scale
     #  rather than a saturated full-bleed fill, which reads as alarming chrome
     #  on a screen someone looks at all day.
-    #  Single line, deliberately: see the note in `risk_domain_panel` — a
-    #  wrapped style attribute is indented four-plus spaces, which Streamlit's
-    #  markdown pass turns into a code block before the HTML is ever handled.
+    #
+    #  Emitted as a single line: a wrapped `style="…"` attribute is indented
+    #  far enough that Streamlit's markdown pass can treat it as a code block.
     guardrail_chip = (
         f'<div style="display:inline-block;margin-top:12px;background:{back};'
         f'color:{fore};border-radius:6px;padding:5px 11px;font-size:.83rem;'
@@ -1142,67 +1142,74 @@ _HEAT_SCALE = [
 def risk_domain_panel(heatmap: dict[str, Any]) -> None:
     """Per-domain risk heatmap from the `generate_risk_heatmap` MCP payload.
 
-    The Analytics MCP tool returns both a ready-made markdown table and the
-    structured `cells` it was built from.  We render the cells so the panel
-    matches the rest of the console instead of dropping a markdown blob into
-    the page.
+    Rendered with `st.dataframe` + a pandas Styler rather than hand-written
+    HTML.  An earlier revision emitted a styled `<div>` grid through
+    `st.markdown(unsafe_allow_html=True)` and did not appear on the page at
+    all; the Styler path is the same one `findings_table` uses, which is known
+    to render here, so the heatmap no longer depends on raw HTML surviving
+    Streamlit's markdown pass.
 
-    The whole grid is emitted as a **single-line** HTML string on purpose.
-    Streamlit runs the markdown parser over the text before the HTML is
-    handled, so any line indented by four or more spaces — which is exactly
-    what a wrapped `style="…"` attribute looks like — is treated as a fenced
-    code block and the markup renders as literal text (or not at all).
+    Falls back to the tool's own `markdown` table, then to a plain table, so
+    the panel degrades to *something* visible rather than to nothing.
     """
     cells = heatmap.get("cells") or []
+
     if not cells:
-        #  Say *why* nothing is here rather than rendering an empty panel.
+        #  Say *why* nothing is here rather than rendering an empty panel, and
+        #  use whatever the tool did send.
+        if heatmap.get("markdown"):
+            st.markdown(heatmap["markdown"])
+            return
         keys = ", ".join(sorted(heatmap)) if heatmap else "none"
-        st.caption(
-            "No domain-level risk recorded for this case. "
-            f"(heatmap payload keys: {keys})"
+        st.info(
+            "The analytics server returned no domain breakdown for this case.  \n"
+            f"Payload keys received: `{keys}`"
         )
         return
 
-    worst = heatmap.get("worst_domain")
-    tiles: list[str] = []
+    import pandas as pd
 
+    worst = heatmap.get("worst_domain")
+    rows = []
     for cell in cells:
         label = cell.get("label") or str(cell.get("domain", "")).replace("_", " ").title()
-        score = int(cell.get("score") or 0)
-        intensity = int(cell.get("intensity") or 0)
-        intensity = max(0, min(intensity, len(_HEAT_SCALE) - 1))
-        back, fore = _HEAT_SCALE[intensity]
-        severity = str(cell.get("severity") or "clean")
-        is_worst = cell.get("domain") == worst and score > 0
-        ring = f"box-shadow:inset 0 0 0 2px {PALETTE['crit_fore']};" if is_worst else ""
-
-        tiles.append(
-            f'<div title="{label}: {severity} (score {score})" '
-            f'style="background:{back};{ring}border-radius:8px;padding:10px 12px;'
-            f'display:flex;align-items:center;justify-content:space-between;gap:10px;">'
-            f'<span style="color:{PALETTE["ink"]};font-size:.82rem;line-height:1.25;">{label}</span>'
-            f'<span style="color:{fore};font-weight:700;font-size:1rem;">{score}</span>'
-            f"</div>"
+        rows.append(
+            {
+                "Clinical domain": label,
+                "Severity": str(cell.get("severity") or "clean").title(),
+                "Score": int(cell.get("score") or 0),
+                #  Kept for the row tint, dropped from the rendered columns.
+                "_intensity": max(0, min(int(cell.get("intensity") or 0),
+                                         len(_HEAT_SCALE) - 1)),
+                "_worst": cell.get("domain") == worst and int(cell.get("score") or 0) > 0,
+            }
         )
 
-    legend = "".join(
-        f'<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;">'
-        f'<span style="width:11px;height:11px;border-radius:3px;background:{back};'
-        f'display:inline-block;"></span>'
-        f'<span style="color:{PALETTE["muted"]};font-size:.72rem;">{name}</span></span>'
-        for (back, _fore), name in zip(_HEAT_SCALE, ["clean", "minor", "moderate", "severe"])
-    )
+    frame = pd.DataFrame(rows)
 
-    grid = (
-        '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));'
-        f'gap:8px;margin-bottom:10px;">{"".join(tiles)}</div>'
-        f'<div style="margin-bottom:4px;">{legend}</div>'
+    def _tint(row: Any) -> list[str]:
+        back, fore = _HEAT_SCALE[int(row["_intensity"])]
+        weight = "font-weight:700;" if row["_worst"] else ""
+        return [f"background-color:{back};color:{fore};{weight}"] * len(row)
+
+    st.dataframe(
+        frame.style.apply(_tint, axis=1),
+        width="stretch",
+        hide_index=True,
+        column_order=("Clinical domain", "Severity", "Score"),
     )
-    st.markdown(grid, unsafe_allow_html=True)
 
     clean = heatmap.get("clean_domains") or []
+    total = heatmap.get("total_score")
+    caption = []
+    if total is not None:
+        caption.append(f"Total {total}")
+    if worst:
+        caption.append(f"driven by **{str(worst).replace('_', ' ')}**")
     if clean:
-        st.caption(f"{len(clean)} of {len(cells)} domains have no findings.")
+        caption.append(f"{len(clean)} of {len(cells)} domains clean")
+    if caption:
+        st.caption(" · ".join(caption))
 
 
 def trace_link(trace_id: str | None) -> None:
