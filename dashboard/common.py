@@ -336,7 +336,9 @@ def _default_flow() -> dict[str, Any]:
         "blocked": None,          # None = unknown (never validated)
         "hitl_required": None,
         "approved": False,        # explicit reviewer sign-off on view 3
+        "rejected": False,        # explicit reviewer rejection on view 3
         "signed_off_by": None,
+        "rejected_by": None,
         "risk_level": None,
         "risk_score": None,
         "findings": 0,
@@ -382,7 +384,13 @@ def sync_flow_from_report(
     state["risk_score"] = risk.score
     state["findings"] = len(report.findings)
 
-    if not risk.discharge_blocked:
+    if state.get("rejected"):
+        #  A rejection is a clinical refusal, not a finding. Re-validating does
+        #  not undo it — only an explicit approval on view 3 does (see
+        #  `mark_signed_off`). Without this, re-running a rejected case that now
+        #  happens to pass the rules would silently promote it to APPROVED.
+        state["stage"] = STAGE_VALIDATED
+    elif not risk.discharge_blocked:
         #  Cleared by the pipeline itself — no reviewer sign-off needed.
         state["stage"] = STAGE_APPROVED
     else:
@@ -395,12 +403,29 @@ def sync_flow_from_report(
 
 
 def mark_signed_off(patient_id: str, reviewer: str, *, approved: bool = True) -> None:
-    """Record an explicit HITL approval (view 3) that releases a blocked case."""
+    """Record the reviewer's decision on view 3.
+
+    Approval releases a blocked case.  Rejection is absolute: it sets a
+    `rejected` flag that `page_unlocked()` honours regardless of whether
+    validation itself blocked the discharge, so a rejected case can never reach
+    summary generation.  The two states are mutually exclusive — recording one
+    clears the other, which is what lets a reviewer change their mind.
+    """
     state = flow_state(patient_id)
-    state["approved"] = bool(approved)
-    state["signed_off_by"] = reviewer or "unnamed reviewer" if approved else None
+    who = reviewer or "unnamed reviewer"
+
     if approved:
+        state["approved"] = True
+        state["signed_off_by"] = who
+        state["rejected"] = False
+        state["rejected_by"] = None
         state["stage"] = STAGE_APPROVED
+    else:
+        state["approved"] = False
+        state["signed_off_by"] = None
+        state["rejected"] = True
+        state["rejected_by"] = who
+        state["stage"] = STAGE_VALIDATED
 
 
 def hydrate_flow(patient_id: str) -> dict[str, Any]:
@@ -446,6 +471,17 @@ def page_unlocked(page_key: str, patient_id: str | None = None) -> tuple[bool, s
             return False, (
                 f"{patient_id} has not been processed yet — run the pipeline on "
                 "**1 · Document Viewer**."
+            )
+        #  Rejection outranks everything. A reviewer who rejects a discharge has
+        #  refused it clinically, and that refusal holds whether or not the
+        #  rules blocked the case — so this is checked before the blocked test,
+        #  not folded into it.
+        if state["rejected"]:
+            return False, (
+                f"{patient_id} was **REJECTED** by "
+                f"{state['rejected_by'] or 'a reviewer'}. No discharge summary "
+                "can be produced for a rejected discharge. Reopen the case on "
+                "**3 · HITL Corrections** and approve it if that was a mistake."
             )
         if state["blocked"] and not state["approved"]:
             return False, (
@@ -535,6 +571,8 @@ def _stage_caption(patient_id: str, state: dict[str, Any]) -> str:
     stage = state["stage"]
     if stage == STAGE_NEW:
         return f"{patient_id}: not processed yet"
+    if state.get("rejected"):
+        return f"{patient_id}: ⛔ rejected by {state.get('rejected_by') or 'reviewer'}"
     if state["blocked"]:
         if state["approved"]:
             return f"{patient_id}: blocked · signed off by {state['signed_off_by']}"

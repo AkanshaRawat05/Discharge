@@ -4,14 +4,15 @@ View 4 — RAG Q&A.
 Never gated by the pipeline: this view queries the FAISS index, so it only needs
 documents to be indexed, not a particular patient to have reached a stage.
 
-Clickable suggested questions · question input · prompt-injection indicator ·
-**token-by-token streaming answer** · source documents · RAG Triad metrics
-tucked into a small expander · guardrail activity · session history.
+Clickable suggested questions · question input with a patient filter ·
+prompt-injection indicator · **token-by-token streaming answer** · source
+documents · RAG Triad metrics tucked into a small expander · guardrail
+activity · session history.
 
-The whole index is searched: there is no patient filter and no retrieval-depth
-control on the page. Both remain available on the agent itself — `top_k` comes
-from `configs/agent_config.yaml`, and `patient_id` is still an accepted payload
-field — they are simply not decisions a reviewer is asked to make here.
+Index mechanics — chunk counts, embedding provider, vector dimension, rebuild —
+are deliberately not shown: they are operator concerns. The index builds itself
+on first use and only a genuine failure is surfaced. Retrieval depth comes from
+`configs/agent_config.yaml` rather than a control on the page.
 
 This is the second real-time touchpoint (matching the streaming RAG agent on
 :8105): tokens are painted into a placeholder as they arrive off the wire
@@ -29,6 +30,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
+    available_patients,
     guardrail_table,
     page_setup,
     settings,
@@ -64,46 +66,29 @@ EXAMPLE_QUERIES = [
 ]
 
 # --------------------------------------------------------------------------- #
-#  Index status — auto-build if empty
+#  Index — built silently on first use
 # --------------------------------------------------------------------------- #
+#  Chunk counts, embedding provider, vector dimension and a rebuild button are
+#  operator concerns, not clinical ones, so none of them are surfaced. The
+#  index still builds itself the first time this page is opened; only a genuine
+#  failure is reported, because that is the one case a reviewer must act on.
 try:
     stats = retrieval.store_stats()
 except Exception as exc:  # noqa: BLE001
     stats = {"error": str(exc), "chunks": 0, "patient_count": 0}
 
 if stats.get("chunks", 0) == 0 and not stats.get("error"):
-    with st.spinner("Building the FAISS vector index for the first time…"):
+    with st.spinner("Preparing the patient record index…"):
         try:
             indexing.reset_store()
             stats = indexing.build_index()
-            st.success(
-                f"Indexed {stats['chunks']} chunks across "
-                f"{stats['patient_count']} patient(s)."
-            )
         except Exception as exc:  # noqa: BLE001
             stats = {"error": str(exc), "chunks": 0, "patient_count": 0}
-            st.error(f"Index build failed: {exc}")
-
-status = st.columns([1, 1, 1, 1, 2])
-status[0].metric("Indexed chunks", stats.get("chunks", 0))
-status[1].metric("Patients indexed", stats.get("patient_count", 0))
-status[2].metric("Embeddings", str(stats.get("embedding_provider", "—")))
-status[3].metric("Dimension", stats.get("dimension", 0))
-with status[4]:
-    if st.button("🔄 Rebuild the FAISS index", width="stretch"):
-        with st.spinner("Re-indexing every patient…"):
-            indexing.reset_store()
-            fresh = indexing.build_index()
-        st.success(
-            f"Indexed {fresh['chunks']} chunks across {fresh['patient_count']} "
-            f"patient(s) using {fresh['embedding_provider']} embeddings."
-        )
-        st.rerun()
 
 if stats.get("error"):
-    st.error(f"Vector store problem: {stats['error']}")
-
-st.divider()
+    st.error(
+        f"The patient record index is unavailable: {stats['error']}"
+    )
 
 # --------------------------------------------------------------------------- #
 #  Question input
@@ -130,17 +115,27 @@ for idx, example in enumerate(example_queries):
         st.session_state["rag_question_input"] = example
         st.rerun()
 
-question = st.text_area(
+controls = st.columns([3, 1])
+question = controls[0].text_area(
     "Question",
     height=90,
     placeholder=f"What medications was {pid} discharged on?",
     key="rag_question_input",
 )
 
+filter_options = ["All patients"] + available_patients()
+patient_filter = controls[1].selectbox(
+    "Restrict to patient",
+    filter_options,
+    index=(
+        filter_options.index(patient_id) if patient_id in filter_options else 0
+    ),
+    key="rag_patient_filter",
+    help="Narrow retrieval to one patient's records, or search every record.",
+)
+
 #  Retrieval depth is a tuning parameter, not a clinical decision — it comes
-#  from `configs/agent_config.yaml` rather than a slider on the page. The RAG
-#  agent still accepts `patient_id`; this view simply always searches every
-#  indexed record, which is what "ask the records" means here.
+#  from `configs/agent_config.yaml` rather than a control on the page.
 top_k = int(settings.rag.get("top_k", 5))
 
 ask = st.button("🔎 Ask", type="primary")
@@ -149,14 +144,15 @@ ask = st.button("🔎 Ask", type="primary")
 #  Answer — streamed token by token
 # --------------------------------------------------------------------------- #
 if ask and question.strip():
+    scope = None if patient_filter == "All patients" else patient_filter
 
     def _events():
         from types import SimpleNamespace
 
         ctx = SimpleNamespace(trace_id=None)
-        #  No `patient_id`: the index is searched in full. The agent still
-        #  supports scoping — this view just does not narrow it.
         payload = {"question": question, "top_k": top_k}
+        if scope:
+            payload["patient_id"] = scope
         return rag_agent.handle(payload, ctx)
 
     st.subheader("Answer")
@@ -182,10 +178,9 @@ if ask and question.strip():
     if error is not None:
         answer_box.empty()
         st.error(
-            f"The RAG pipeline encountered an error: **{error}**\n\n"
-            "This usually happens when the vector index hasn't been built yet or "
-            "the Bedrock quota is exhausted. Try pressing **Rebuild the FAISS "
-            "index** above, or wait for the quota to reset."
+            f"The question could not be answered: **{error}**\n\n"
+            "This usually means the language model is temporarily unavailable "
+            "or its quota is exhausted. Try again shortly."
         )
     else:
         streamed = "".join(collected).strip()

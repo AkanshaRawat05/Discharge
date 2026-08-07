@@ -68,6 +68,20 @@ if report is None:
 risk = report.risk
 state = flow_state(patient_id)
 
+#  Belt and braces against a rejected discharge. `require_page("summary")`
+#  already refuses to render this view for a rejected case, but a stale browser
+#  tab holding a pre-rejection render could still reach the button below, so the
+#  refusal is repeated here rather than trusted once.
+if state.get("rejected"):
+    st.error(
+        f"⛔ **{patient_id} was rejected by "
+        f"{state.get('rejected_by') or 'a reviewer'}.** No discharge summary "
+        "can be generated for a rejected discharge."
+    )
+    if st.button("← Back to 3 · HITL Corrections", type="primary"):
+        goto("corrections")
+    st.stop()
+
 #  Reaching this view means the case is releasable. A blocked case can only be
 #  here on a recorded reviewer sign-off, which is what authorises the override
 #  the pipeline needs to generate at all.

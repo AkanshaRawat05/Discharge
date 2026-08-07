@@ -256,9 +256,14 @@ with decision_columns[0]:
     )
 
 with decision_columns[1]:
+    #  `index=None` leaves the control unset until the reviewer chooses. With a
+    #  default, the first option is pre-selected and a case could be signed off
+    #  by someone who never actually made a decision — which is exactly what a
+    #  human-in-the-loop gate exists to prevent.
     approval = st.radio(
         "Approval decision",
-        ["Pending", "Approve", "Reject"],
+        ["Approve", "Reject"],
+        index=None,
         key=f"approval-{patient_id}",
     )
 
@@ -363,10 +368,21 @@ if buttons[0].button("💾 Save feedback", width="stretch"):
         f"Feedback saved to `{path.name}` ({count} medication row(s) applied to "
         "the working case)."
     )
-    if approval in APPROVING and risk.discharge_blocked:
+    if approval == "Reject":
+        st.error(
+            "**Discharge rejected.** No summary will be generated for this "
+            "case. **5 · Discharge Summary** is locked until the rejection is "
+            "reversed by approving the case here."
+        )
+    elif approval in APPROVING and risk.discharge_blocked:
         st.info(
             "Sign-off recorded — **5 · Discharge Summary** is now unlocked for "
             "this case despite the block."
+        )
+    elif approval is None:
+        st.warning(
+            "No approval decision was recorded — choose **Approve** or "
+            "**Reject** above to sign this case off."
         )
 
 # --------------------------------------------------------------------------- #
