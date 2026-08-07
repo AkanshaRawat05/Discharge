@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
     artefact_downloads,
+    english_drug_name,
     flow_state,
     get_case,
     get_report,
@@ -190,7 +191,7 @@ else:
             [
                 {
                     "#": row.get("sl_no"),
-                    "Medicine": row.get("medicine_name"),
+                    "Medicine": english_drug_name(row.get("medicine_name")),
                     "Strength": row.get("strength"),
                     "How much": row.get("dosage"),
                     "How often": row.get("frequency_plain") or row.get("frequency"),

@@ -19,6 +19,8 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
+    english_medication_rows,
+    english_text,
     get_case,
     goto,
     language_badge,
@@ -27,6 +29,7 @@ from common import (  # noqa: E402
     stream_pipeline,
 )
 from discharge_ai.common.doc_loader import load_patient_documents  # noqa: E402
+from discharge_ai.common.terminology import language_name  # noqa: E402
 
 page_setup(
     "1 · Document Viewer",
@@ -44,15 +47,16 @@ case = get_case(patient_id, refresh=st.session_state.pop("force_case_refresh", F
 # --------------------------------------------------------------------------- #
 #  Header
 # --------------------------------------------------------------------------- #
-header = st.columns([2, 1, 1, 1])
-header[0].markdown(f"### {case.patient_name or patient_id}")
-header[0].markdown(
-    "Detected language: " + language_badge(case.detected_language),
-    unsafe_allow_html=True,
-)
-header[1].metric("Documents", len(documents))
-header[2].metric("Medications", len(case.medications))
-header[3].metric("Lab results", len(case.lab_tests))
+with st.container(border=True):
+    header = st.columns([2, 1, 1, 1])
+    header[0].markdown(f"### {case.patient_name or patient_id}")
+    header[0].markdown(
+        "Detected language: " + language_badge(case.detected_language),
+        unsafe_allow_html=True,
+    )
+    header[1].metric("Documents", len(documents))
+    header[2].metric("Medications", len(case.medications))
+    header[3].metric("Lab results", len(case.lab_tests))
 
 if case.extraction_notes:
     with st.expander(f"Extraction notes ({len(case.extraction_notes)})"):
@@ -69,6 +73,11 @@ TAB_LABELS = {
     "lab_report": "Lab report",
     "bill": "Hospital bill",
 }
+
+#  Document type → the key the Clinical Normalizer stores its English
+#  translation under on `case.translated_text`. Only the discharge narrative is
+#  translated; lab reports and bills are numeric/structured.
+TRANSLATED_BLOCK = {"discharge_report": "narrative"}
 
 present = [key for key in TAB_LABELS if key in documents]
 missing = [key for key in TAB_LABELS if key not in documents]
@@ -98,19 +107,47 @@ for index, doc_type in enumerate(present):
                 "recovered by OCR and should be spot-checked against the paper."
             )
 
+        #  English-first preview. The Clinical Normalizer translates the
+        #  discharge narrative through MCP Sampling and stores it on the case;
+        #  when that exists for a non-English record we show it by default and
+        #  keep the source text one click away, because the original document
+        #  is still the evidence a reviewer reconciles against.
+        english_narrative = (
+            (case.translated_text or {}).get(TRANSLATED_BLOCK.get(doc_type, ""))
+            if case.detected_language != "en" else None
+        )
+
+        options: list[str] = []
+        if english_narrative:
+            options.append("English translation")
         if document.data is not None:
-            view = st.radio(
-                "View", ["Structured JSON", "Rendered text"],
-                horizontal=True, key=f"view-{doc_type}",
+            options.append("Structured JSON")
+        options.append("Source text" if english_narrative else "Document text")
+
+        #  Widget keys MUST carry the patient id. A key that is stable across
+        #  patients keeps its previous session_state value on rerun, which is
+        #  how one patient's document text used to bleed into another's tab.
+        view = (
+            st.radio("View", options, horizontal=True,
+                     key=f"view-{patient_id}-{doc_type}")
+            if len(options) > 1 else options[0]
+        )
+
+        if view == "English translation":
+            st.text_area("Discharge record (translated to English)",
+                         english_narrative, height=440,
+                         key=f"en-{patient_id}-{doc_type}", disabled=True)
+            st.caption(
+                f"Translated from {language_name(case.detected_language)} by the "
+                "Clinical Normalizer. Switch to **Source text** to see the "
+                "original wording."
             )
-            if view == "Structured JSON":
-                st.json(document.data, expanded=False)
-            else:
-                st.text_area("Document text", document.text, height=440,
-                             key=f"text-{doc_type}")
+        elif view == "Structured JSON":
+            st.json(document.data, expanded=False)
         else:
-            st.text_area("Document text", document.text or "(no extractable text)",
-                         height=460, key=f"text-{doc_type}")
+            st.text_area(view, document.text or "(no extractable text)",
+                         height=440 if document.data is not None else 460,
+                         key=f"text-{patient_id}-{doc_type}", disabled=True)
 
 # --------------------------------------------------------------------------- #
 #  Structured preview
@@ -147,12 +184,16 @@ with tabs[-1]:
         for allergy in case.allergies or ["— none documented —"]:
             st.markdown(f"- {allergy}")
         st.write("Follow-up appointment:")
-        st.markdown(f"- {case.follow_up_appointment or '— NONE SCHEDULED —'}")
+        st.markdown(
+            f"- {english_text(case, 'follow_up_appointment') or '— NONE SCHEDULED —'}"
+        )
 
     st.markdown("**Discharge prescriptions**")
     if case.medications:
+        #  Drug names are shown in English; `as_written` preserves the source
+        #  spelling so a reviewer can still reconcile against the paper.
         st.dataframe(
-            [medication.model_dump(mode="json") for medication in case.medications],
+            english_medication_rows(case.medications),
             width="stretch", hide_index=True,
         )
     else:
@@ -190,31 +231,28 @@ st.divider()
 # --------------------------------------------------------------------------- #
 st.subheader("Process this patient")
 st.caption(
-    "Runs Clinical Extractor → Clinical Normalizer → Clinical Validation. "
-    "In **a2a** mode each agent is called over the A2A protocol; in **local** "
-    "mode the handlers run in this process. You are taken to **2 · Validation "
-    "Report** when it finishes. The discharge summary is a separate step: it "
-    "is only generated when a reviewer clicks **Generate summary** on "
+    "Extracts the record, normalises it to English, and validates it against "
+    "the hospital EHR and care plan. You are taken to **2 · Validation Report** "
+    "when it finishes. The discharge summary is a separate step — it is only "
+    "generated when a reviewer clicks **Generate summary** on "
     "**5 · Discharge Summary**."
 )
 
-controls = st.columns([1, 3])
-use_llm = controls[0].checkbox(
-    "LLM gap-filling", value=True,
-    help="Let the LLM fill only the fields the deterministic parser could not read.",
-)
-
-if controls[1].button("▶ Process this patient", type="primary", width="stretch"):
+if st.button("▶ Process this patient", type="primary"):
     mode = st.session_state["execution_mode"]
-    status_box = st.status(f"Processing {patient_id} in {mode} mode…", expanded=True)
+    status_box = st.status(f"Processing {patient_id}…", expanded=True)
     result = None
 
     with status_box:
+        #  LLM gap-filling is always on: it only fills fields the deterministic
+        #  parser could not read and can never overwrite a value read verbatim
+        #  from the source document, so there is nothing for a reviewer to
+        #  decide here.
         for kind, payload, message in stream_pipeline(
             patient_id,
             mode=mode,
             generate_summary=False,
-            use_llm_extraction=use_llm,
+            use_llm_extraction=True,
         ):
             if kind == "progress":
                 st.markdown(f"**{payload}** — {message}")

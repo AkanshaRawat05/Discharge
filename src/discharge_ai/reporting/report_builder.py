@@ -103,12 +103,10 @@ def build_reports(
 #  Patient-friendly discharge summary
 # --------------------------------------------------------------------------- #
 def render_summary_html(summary: DischargeSummary) -> str:
+    #  No `trace_url` here on purpose — the patient-facing summary does not
+    #  carry observability ids. The audit report (render_audit_html) still does.
     template = _env.get_template("discharge_summary.html")
-    return template.render(
-        summary=summary,
-        hospital=_hospital(),
-        trace_url=tracing.trace_url(summary.trace_id),
-    )
+    return template.render(summary=summary, hospital=_hospital())
 
 
 def build_summary_reports(
@@ -326,5 +324,9 @@ def _summary_pdf_lines(summary: DischargeSummary) -> list[tuple[str, str]]:
                      f"[{summary.bill_snapshot.get('payment_status') or 'unknown'}]"),
         ]
 
-    blocks += [("spacer", ""), ("body", f"LangFuse trace: {summary.trace_id or 'n/a'}")]
+    #  The LangFuse trace id is deliberately NOT printed on the discharge
+    #  summary: this artefact goes home with the patient and an internal
+    #  observability id has no meaning to them. Tracing itself is untouched —
+    #  `summary.trace_id` still populates every LangFuse span, and the reviewer
+    #  can still open the trace from the dashboard's trace link.
     return blocks

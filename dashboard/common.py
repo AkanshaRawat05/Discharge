@@ -42,7 +42,6 @@ from discharge_ai.common.schemas import (  # noqa: E402
     ExtractedCase,
     ValidationReport,
 )
-from discharge_ai.llm.provider import provider_banner  # noqa: E402
 from discharge_ai.observability import tracing  # noqa: E402
 from discharge_ai.pipeline import default_mode  # noqa: E402
 from discharge_ai.settings import settings  # noqa: E402
@@ -59,7 +58,6 @@ STAGE_APPROVED = "approved"      # cleared for release (not blocked, or signed o
 
 #  Navigation keys → the labels/icons used by `render_nav()` and `goto()`.
 NAV_ITEMS: list[dict[str, str]] = [
-    {"key": "home", "label": "Overview", "icon": ":material/home:"},
     {"key": "documents", "label": "1 · Document Viewer", "icon": ":material/description:"},
     {"key": "validation", "label": "2 · Validation Report", "icon": ":material/fact_check:"},
     {"key": "corrections", "label": "3 · HITL Corrections", "icon": ":material/edit_note:"},
@@ -67,15 +65,39 @@ NAV_ITEMS: list[dict[str, str]] = [
     {"key": "summary", "label": "5 · Discharge Summary", "icon": ":material/assignment_turned_in:"},
 ]
 
+# --------------------------------------------------------------------------- #
+#  Palette — clinical, low-saturation.  White / light blue / teal / soft green
+#  / light grey.  Status colours are muted enough to sit calmly on a screen a
+#  clinician reads all day, but still clear a WCAG AA contrast check against
+#  their tinted backgrounds.
+# --------------------------------------------------------------------------- #
+PALETTE = {
+    "ink": "#1f2933",          # primary text
+    "muted": "#5c6b7a",        # secondary text
+    "line": "#e3e9ef",         # hairline borders
+    "surface": "#ffffff",      # card background
+    "canvas": "#f5f8fa",       # page background
+    "accent": "#0f6e8c",       # teal — primary brand accent
+    "accent_soft": "#e6f2f6",  # teal tint
+    "ok_fore": "#20724f",      # soft green
+    "ok_back": "#e8f4ee",
+    "warn_fore": "#8a6100",    # muted amber
+    "warn_back": "#fdf4e3",
+    "crit_fore": "#a32d38",    # desaturated clinical red
+    "crit_back": "#fbecee",
+    "info_fore": "#1b5e8a",    # light blue
+    "info_back": "#e9f2f9",
+}
+
 RISK_COLOURS = {
-    "Low": ("#1c6b3f", "#e9f6ee"),
-    "Medium": ("#8a5a00", "#fff6e2"),
-    "High": ("#b8202e", "#fdecee"),
+    "Low": (PALETTE["ok_fore"], PALETTE["ok_back"]),
+    "Medium": (PALETTE["warn_fore"], PALETTE["warn_back"]),
+    "High": (PALETTE["crit_fore"], PALETTE["crit_back"]),
 }
 SEVERITY_COLOURS = {
-    "Critical": ("#b8202e", "#fdecee"),
-    "Warning": ("#8a5a00", "#fff6e2"),
-    "Info": ("#1b5e8a", "#eaf4fb"),
+    "Critical": (PALETTE["crit_fore"], PALETTE["crit_back"]),
+    "Warning": (PALETTE["warn_fore"], PALETTE["warn_back"]),
+    "Info": (PALETTE["info_fore"], PALETTE["info_back"]),
 }
 
 
@@ -90,12 +112,181 @@ def configure_page() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    inject_theme()
+
+
+def inject_theme() -> None:
+    """Clinical visual language, applied once per session.
+
+    Styling only — no component behaviour is touched.  The goal is a calm,
+    high-legibility surface a clinician reads all shift: generous white space,
+    a single teal accent, hairline borders instead of heavy shadows, and status
+    colour used sparingly so that when something *is* red it actually reads as
+    urgent.
+    """
+    st.markdown(
+        f"""
+<style>
+  /* ---- Type scale ------------------------------------------------------ */
+  html, body, [class*="st-"] {{
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: {PALETTE['ink']};
+  }}
+  .stApp {{ background: {PALETTE['canvas']}; }}
+
+  /* Page title: smaller and calmer than Streamlit's default slab. */
+  h1 {{
+      font-size: 1.65rem !important;
+      font-weight: 650 !important;
+      letter-spacing: -.015em;
+      color: {PALETTE['ink']};
+      padding-bottom: .15rem !important;
+  }}
+  h2 {{ font-size: 1.2rem !important;  font-weight: 640 !important;
+        letter-spacing: -.01em; margin-top: .4rem !important; }}
+  h3 {{ font-size: 1.02rem !important; font-weight: 640 !important; }}
+  h4 {{ font-size: .95rem !important;  font-weight: 640 !important; }}
+
+  /* ---- Main container spacing ----------------------------------------- */
+  .block-container {{
+      padding-top: 2.4rem;
+      padding-bottom: 3.5rem;
+      max-width: 1500px;
+  }}
+
+  /* ---- Cards ----------------------------------------------------------- */
+  /* Bordered containers are the primary grouping device across every page. */
+  div[data-testid="stVerticalBlockBorderWrapper"] {{
+      background: {PALETTE['surface']};
+      border: 1px solid {PALETTE['line']} !important;
+      border-radius: 10px;
+      padding: 2px 4px;
+      box-shadow: 0 1px 2px rgba(31,41,51,.04);
+  }}
+
+  /* ---- Metrics --------------------------------------------------------- */
+  div[data-testid="stMetric"] {{
+      background: {PALETTE['surface']};
+      border: 1px solid {PALETTE['line']};
+      border-radius: 10px;
+      padding: 14px 16px;
+  }}
+  div[data-testid="stMetricLabel"] p {{
+      font-size: .74rem !important;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: {PALETTE['muted']};
+  }}
+  div[data-testid="stMetricValue"] {{
+      font-size: 1.5rem !important;
+      font-weight: 650;
+      color: {PALETTE['ink']};
+  }}
+
+  /* ---- Tabs ------------------------------------------------------------ */
+  button[data-baseweb="tab"] {{
+      font-weight: 560;
+      color: {PALETTE['muted']};
+  }}
+  button[data-baseweb="tab"][aria-selected="true"] {{
+      color: {PALETTE['accent']};
+  }}
+  div[data-baseweb="tab-highlight"] {{ background-color: {PALETTE['accent']}; }}
+  div[data-baseweb="tab-border"]    {{ background-color: {PALETTE['line']}; }}
+
+  /* ---- Buttons --------------------------------------------------------- */
+  .stButton > button {{
+      border-radius: 8px;
+      font-weight: 560;
+      border: 1px solid {PALETTE['line']};
+      transition: background .12s ease, border-color .12s ease;
+  }}
+  .stButton > button[kind="primary"] {{
+      background: {PALETTE['accent']};
+      border-color: {PALETTE['accent']};
+      color: #ffffff;
+  }}
+  .stButton > button[kind="primary"]:hover {{
+      background: #0c5a73;
+      border-color: #0c5a73;
+  }}
+  .stButton > button[kind="secondary"]:hover {{
+      border-color: {PALETTE['accent']};
+      color: {PALETTE['accent']};
+  }}
+
+  /* ---- Sidebar --------------------------------------------------------- */
+  section[data-testid="stSidebar"] {{
+      background: {PALETTE['surface']};
+      border-right: 1px solid {PALETTE['line']};
+  }}
+  section[data-testid="stSidebar"] h3 {{
+      font-size: .74rem !important;
+      font-weight: 640 !important;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: {PALETTE['muted']};
+      margin-bottom: .35rem;
+  }}
+  /* Nav links read as a list, with the teal accent reserved for the active one. */
+  section[data-testid="stSidebar"] a[data-testid="stPageLink-NavLink"] {{
+      border-radius: 7px;
+      padding: 5px 9px;
+      margin-bottom: 1px;
+  }}
+  section[data-testid="stSidebar"] a[data-testid="stPageLink-NavLink"]:hover {{
+      background: {PALETTE['accent_soft']};
+  }}
+
+  /* ---- Tables ---------------------------------------------------------- */
+  div[data-testid="stDataFrame"] {{
+      border: 1px solid {PALETTE['line']};
+      border-radius: 8px;
+  }}
+
+  /* ---- Alerts: flat tints, no gradients ------------------------------- */
+  div[data-testid="stAlert"] {{
+      border-radius: 8px;
+      border-left-width: 3px;
+  }}
+
+  /* ---- Inputs ---------------------------------------------------------- */
+  div[data-baseweb="input"], div[data-baseweb="select"] > div,
+  div[data-baseweb="textarea"] {{
+      border-radius: 7px !important;
+  }}
+
+  /* ---- Expanders ------------------------------------------------------- */
+  details[data-testid="stExpander"] {{
+      border: 1px solid {PALETTE['line']};
+      border-radius: 9px;
+      background: {PALETTE['surface']};
+  }}
+
+  /* ---- Dividers: hairline, not a slab --------------------------------- */
+  hr {{ border-color: {PALETTE['line']} !important; margin: 1.4rem 0 !important; }}
+
+  /* ---- Captions -------------------------------------------------------- */
+  div[data-testid="stCaptionContainer"] {{ color: {PALETTE['muted']}; }}
+
+  /* ---- Progress -------------------------------------------------------- */
+  div[data-testid="stProgress"] > div > div > div {{
+      background-color: {PALETTE['accent']};
+  }}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
 
 
 def page_setup(title: str, subtitle: str = "") -> None:
     """Header for one view. Page config lives in the entrypoint (`app.py`)."""
     init_state()
-    st.title(f"{PAGE_ICON} {title}")
+    #  Re-injected per view: Streamlit runs each page as its own script, so the
+    #  <style> block from `configure_page()` does not survive a page switch.
+    inject_theme()
+    st.title(title)
     if subtitle:
         st.caption(subtitle)
 
@@ -219,7 +410,7 @@ def page_unlocked(page_key: str, patient_id: str | None = None) -> tuple[bool, s
     """
     patient_id = patient_id or st.session_state.get("patient_id")
 
-    if page_key in {"home", "documents", "rag"}:
+    if page_key in {"documents", "rag"}:
         return True, ""
 
     if not patient_id:
@@ -361,32 +552,29 @@ def patient_selector() -> str | None:
     chosen = st.sidebar.selectbox(
         "Patient", patients, index=index, key="global_patient_selector"
     )
+
+    #  Switching patients must not leave another patient's widget state on the
+    #  page.  Per-patient widget keys are namespaced `<prefix>-<patient_id>-…`,
+    #  so on a switch we drop every namespaced key that belongs to somebody
+    #  else.  Without this, Streamlit re-uses the stale session_state value for
+    #  a key and one patient's document text renders under another's tab.
+    if current and chosen != current:
+        stale = [
+            key for key in list(st.session_state.keys())
+            if isinstance(key, str) and f"-{current}-" in key
+        ]
+        for key in stale:
+            del st.session_state[key]
+
     st.session_state["patient_id"] = chosen
     return chosen
 
 
-def sidebar_status() -> None:
-    """System status panel shown on every page."""
-    with st.sidebar:
-        st.divider()
-        st.subheader("System")
-        st.session_state["execution_mode"] = st.radio(
-            "Execution mode",
-            ["local", "a2a"],
-            index=["local", "a2a"].index(st.session_state.get("execution_mode", "local")),
-            help=(
-                "local = agent handlers run inside this process. "
-                "a2a = each agent is called over the A2A protocol "
-                "(start them with `python run_services.py --agents`)."
-            ),
-        )
-        st.caption(provider_banner())
-        st.caption(
-            f"LangFuse: {'connected' if tracing.langfuse_available() else 'disabled'}"
-        )
-        # st.caption(f"MCP: {settings.mcp_primary_url}")
-        # st.caption(f"MCP analytics: {settings.mcp_analytics_url}")
-        # st.caption(f"Mock EHR: {settings.ehr_base_url}")
+#  The former `sidebar_status()` "System" panel (execution-mode radio, LLM
+#  provider banner, LangFuse connection state) has been removed: it exposed
+#  deployment internals to clinical staff who cannot act on them.  Execution
+#  mode is resolved automatically by `default_mode()`, which probes the agent
+#  ports and uses the real A2A path when the agents are listening.
 
 
 # --------------------------------------------------------------------------- #
@@ -640,38 +828,46 @@ def decision_hero(report: Any) -> str:
     """
     risk = report.risk
     if risk.discharge_blocked:
-        decision, palette, icon, headline = (
-            "blocked", ("#ffffff", "#b8202e"), "🛑", "DISCHARGE BLOCKED",
+        decision, fore, back, icon, headline = (
+            "blocked", PALETTE["crit_fore"], PALETTE["crit_back"],
+            "🛑", "Discharge blocked",
         )
     elif risk.hitl_required:
-        decision, palette, icon, headline = (
-            "hitl", ("#3d2600", "#ffd88a"), "⚠️", "HUMAN REVIEW REQUIRED",
+        decision, fore, back, icon, headline = (
+            "hitl", PALETTE["warn_fore"], PALETTE["warn_back"],
+            "⚠️", "Human review required",
         )
     else:
-        decision, palette, icon, headline = (
-            "cleared", ("#0f4d2c", "#b9ecc9"), "✅", "CLEARED FOR RELEASE",
+        decision, fore, back, icon, headline = (
+            "cleared", PALETTE["ok_fore"], PALETTE["ok_back"],
+            "✅", "Cleared for release",
         )
 
-    fore, back = palette
     detail = risk.recommendation_text or ""
     guardrails = (
         "Hard guardrails: " + ", ".join(risk.hard_guardrails_hit)
         if getattr(risk, "hard_guardrails_hit", None) else ""
     )
 
-    #  Deliberately outsized: ~3.2rem headline against the page's ~1rem body,
-    #  full-bleed block, solid high-contrast fill rather than a tinted callout.
+    #  Still the visually dominant element on the page — a reviewer must not be
+    #  able to miss a block — but carried by a heavy accent rule and scale
+    #  rather than a saturated full-bleed fill, which reads as alarming chrome
+    #  on a screen someone looks at all day.
     st.markdown(
         f"""
-<div style="background:{back};color:{fore};border-radius:14px;
-            padding:28px 34px;margin:6px 0 22px 0;
-            box-shadow:0 6px 22px rgba(0,0,0,.18);">
-  <div style="font-size:3.2rem;line-height:1.05;font-weight:800;
-              letter-spacing:-.5px;">{icon}&nbsp;{headline}</div>
-  <div style="font-size:1.15rem;margin-top:12px;opacity:.95;">{detail}</div>
-  {f'<div style="font-size:1rem;margin-top:8px;font-weight:700;opacity:.95;">{guardrails}</div>' if guardrails else ''}
-  <div style="font-size:.95rem;margin-top:14px;opacity:.85;">
-    Risk {risk.level.value} · score {risk.score} · recommendation {risk.recommendation.value}
+<div style="background:{PALETTE['surface']};border:1px solid {PALETTE['line']};
+            border-left:6px solid {fore};border-radius:10px;
+            padding:22px 26px;margin:4px 0 20px 0;">
+  <div style="font-size:1.9rem;line-height:1.15;font-weight:680;
+              letter-spacing:-.02em;color:{fore};">{icon}&nbsp;{headline}</div>
+  <div style="font-size:1rem;margin-top:10px;color:{PALETTE['ink']};">{detail}</div>
+  {f'<div style="display:inline-block;margin-top:12px;background:{back};color:{fore};border-radius:6px;padding:5px 11px;font-size:.83rem;font-weight:640;">{guardrails}</div>' if guardrails else ''}
+  <div style="font-size:.85rem;margin-top:14px;padding-top:12px;
+              border-top:1px solid {PALETTE['line']};color:{PALETTE['muted']};">
+    Risk <strong style="color:{PALETTE['ink']};">{risk.level.value}</strong>
+    &nbsp;·&nbsp; Score <strong style="color:{PALETTE['ink']};">{risk.score}</strong>
+    &nbsp;·&nbsp; Recommendation
+    <strong style="color:{PALETTE['ink']};">{risk.recommendation.value}</strong>
   </div>
 </div>
 """,
@@ -805,6 +1001,134 @@ def _is_long_text(spec: dict[str, Any]) -> bool:
     return isinstance(max_length, int) and max_length > 120
 
 
+# --------------------------------------------------------------------------- #
+#  English-only display layer
+# --------------------------------------------------------------------------- #
+#  The console is used by English-speaking hospital staff, but source documents
+#  arrive in Dutch, Spanish and Hindi.  Everything below converts a value to its
+#  English display form at render time only — the underlying `ExtractedCase`
+#  keeps the original text, and the Clinical Normalizer / MCP Sampling
+#  translation path is untouched.  These helpers never mutate the case.
+#  `canonical_drug()` is a *comparison* key, not a display name, and a few of
+#  its keys are US-market forms.  This hospital's records use the international
+#  (INN/BAN) name, so override those few for display only.  Comparison and
+#  validation continue to use the canonical key untouched.
+_DRUG_DISPLAY_OVERRIDES = {
+    "acetaminophen": "Paracetamol",
+    "amoxicillin-clavulanate": "Amoxicillin-Clavulanate",
+}
+
+
+def english_drug_name(name: str | None) -> str:
+    """Localised drug spelling → English INN for display.
+
+    `Amoxicilline` (nl) / `Amoxicilina` (es) / `पैरासिटामोल` (hi) → the English
+    name.  Falls back to the original string whenever the canonicaliser does not
+    recognise it, so an unknown drug is shown as written rather than blanked.
+    """
+    from discharge_ai.common.terminology import canonical_drug
+
+    original = str(name).strip()
+    if not original:
+        return ""
+    canonical = canonical_drug(original)
+    if not canonical:
+        return original
+
+    override = _DRUG_DISPLAY_OVERRIDES.get(canonical)
+    if override:
+        return override
+
+    #  No synonym actually fired — the canonicaliser only lower-cased what we
+    #  gave it.  Keep the reviewer's own spelling and capitalisation rather than
+    #  title-casing an unrecognised drug into nonsense ("SomeDrug" → "Somedrug").
+    if canonical == original.lower():
+        return original
+
+    #  Title-case each hyphen-separated part: "amoxicillin-clavulanate" reads
+    #  as "Amoxicillin-Clavulanate", not "Amoxicillin-clavulanate".
+    return "-".join(part.title() for part in canonical.split("-"))
+
+
+def english_text(case: Any, field: str, fallback: Any = None) -> Any:
+    """Prefer the Normalizer's English translation of a case field.
+
+    `case.translated_text` is populated by the Clinical Normalizer Agent from
+    the MCP Sampling `medical_lang_bridge` round-trip.  When a block was
+    translated we show that; otherwise we show what was extracted.
+    """
+    translated = getattr(case, "translated_text", None) or {}
+    value = translated.get(field)
+    if value:
+        return value
+    return fallback if fallback is not None else getattr(case, field, None)
+
+
+def english_medication_rows(medications: list[Any]) -> list[dict[str, Any]]:
+    """Medication rows with English drug names, for display tables.
+
+    Keeps the source spelling in a separate column so a reviewer can still
+    reconcile against the paper prescription.
+    """
+    rows: list[dict[str, Any]] = []
+    for medication in medications:
+        payload = (
+            medication if isinstance(medication, dict)
+            else medication.model_dump(mode="json")
+        )
+        source_name = payload.get("medicine_name") or ""
+        display_name = english_drug_name(source_name)
+        row = dict(payload)
+        row["medicine_name"] = display_name
+        if display_name.strip().lower() != str(source_name).strip().lower():
+            row["as_written"] = source_name
+        rows.append(row)
+    return rows
+
+
+def risk_domain_panel(heatmap: dict[str, Any]) -> None:
+    """Per-domain risk, rendered from the `generate_risk_heatmap` MCP payload.
+
+    The Analytics MCP tool returns both a ready-made markdown table and the
+    structured `cells` it was built from.  We render the cells: a markdown blob
+    dropped into the page reads as a wall of text next to the rest of the
+    console, and the structured form lets a reviewer see at a glance which
+    clinical domain is actually driving the score.
+    """
+    cells = heatmap.get("cells") or []
+    if not cells:
+        st.caption("No domain-level risk recorded for this case.")
+        return
+
+    worst = heatmap.get("worst_domain")
+    for cell in cells:
+        label = cell.get("label") or str(cell.get("domain", "")).replace("_", " ").title()
+        score = int(cell.get("score") or 0)
+
+        if score == 0:
+            fore, back, mark = PALETTE["ok_fore"], PALETTE["ok_back"], "✓"
+        elif cell.get("domain") == worst:
+            fore, back, mark = PALETTE["crit_fore"], PALETTE["crit_back"], "●"
+        else:
+            fore, back, mark = PALETTE["warn_fore"], PALETTE["warn_back"], "●"
+
+        st.markdown(
+            f"""
+<div style="display:flex;align-items:center;justify-content:space-between;
+            background:{back};border-left:3px solid {fore};
+            border-radius:6px;padding:8px 12px;margin-bottom:6px;">
+  <span style="color:{PALETTE['ink']};font-size:.9rem;">{mark}&nbsp;&nbsp;{label}</span>
+  <span style="color:{fore};font-weight:700;font-size:.9rem;">{score}</span>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    clean = heatmap.get("clean_domains") or []
+    if clean:
+        st.caption(f"{len(clean)} domain(s) with no findings.")
+
+
 def trace_link(trace_id: str | None) -> None:
     if not trace_id:
         return
@@ -837,9 +1161,9 @@ def findings_table(report: ValidationReport) -> None:
 
     def _highlight(row: Any) -> list[str]:
         colour = {
-            "Critical": "background-color:#fdecee",
-            "Warning": "background-color:#fff6e2",
-            "Info": "background-color:#eaf4fb",
+            "Critical": f"background-color:{PALETTE['crit_back']}",
+            "Warning": f"background-color:{PALETTE['warn_back']}",
+            "Info": f"background-color:{PALETTE['info_back']}",
         }.get(row["Severity"], "")
         return [colour] * len(row)
 

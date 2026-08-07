@@ -170,9 +170,9 @@
   {% endif %}
 
   <footer>
-    LangFuse trace <code>{{ summary.trace_id or 'n/a' }}</code>
-    {% if trace_url %}&middot; <a href="{{ trace_url }}">open trace</a>{% endif %}
-    <br>
+    {# The LangFuse trace id is intentionally omitted here — this document is
+       the patient's own copy. Tracing still runs; the reviewer opens the trace
+       from the dashboard, not from this export. #}
     Keep this summary and bring it to your follow-up appointments. If anything
     here differs from what your care team told you, contact the hospital before
     changing any medicine.

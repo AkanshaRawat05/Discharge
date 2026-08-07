@@ -34,6 +34,7 @@ from common import (  # noqa: E402
     page_setup,
     require_page,
     risk_badge,
+    risk_domain_panel,
     sync_flow_from_report,
     trace_link,
 )
@@ -238,41 +239,42 @@ with left:
         st.success("Nothing contributed to the risk score.")
 
 with right:
-    st.subheader("Analytics (MCP :8201)")
+    st.subheader("Risk by clinical domain")
     analytics = report.analytics or {}
     if not analytics or analytics.get("error"):
         st.caption(
             "No analytics recorded"
             + (f" — {analytics.get('error')}" if analytics.get("error") else "")
-            + ". Start the Analytics MCP server on :8201 to populate this panel."
+            + ". The analytics service is not available."
         )
     else:
-        heatmap = analytics.get("heatmap") or {}
-        if heatmap.get("markdown"):
-            st.markdown(heatmap["markdown"])
+        #  Rendered from the structured `cells` the generate_risk_heatmap MCP
+        #  tool returns, rather than dumping its raw markdown blob — same data,
+        #  legible at a glance.
+        risk_domain_panel(analytics.get("heatmap") or {})
+
         if analytics.get("benchmark_interpretation"):
-            st.info(analytics["benchmark_interpretation"])
+            st.caption(analytics["benchmark_interpretation"])
 
         benchmarks = (analytics.get("benchmarks") or {}).get("benchmarks") or []
         if benchmarks:
             import pandas as pd
 
-            st.dataframe(
-                pd.DataFrame(
-                    [
-                        {
-                            "ICD-10": b.get("icd10"),
-                            "Diagnosis": b.get("diagnosis"),
-                            "30-day readmission": f"{b.get('readmission_30d_rate', 0):.1%}",
-                            "Network median": f"{b.get('network_median', 0):.1%}",
-                            "Avg LOS (days)": b.get("avg_length_of_stay_days"),
-                            "Follow-up attendance": f"{b.get('followup_attendance_rate', 0):.0%}",
-                        }
-                        for b in benchmarks
-                    ]
-                ),
-                width="stretch", hide_index=True,
-            )
+            with st.expander("Population benchmarks", expanded=False):
+                st.dataframe(
+                    pd.DataFrame(
+                        [
+                            {
+                                "Diagnosis": b.get("diagnosis"),
+                                "30-day readmission": f"{b.get('readmission_30d_rate', 0):.1%}",
+                                "Network median": f"{b.get('network_median', 0):.1%}",
+                                "Follow-up attendance": f"{b.get('followup_attendance_rate', 0):.0%}",
+                            }
+                            for b in benchmarks
+                        ]
+                    ),
+                    width="stretch", hide_index=True,
+                )
 
 st.divider()
 

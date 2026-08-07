@@ -594,8 +594,7 @@ Ai_Discharge_Summary/
 │   ├── app.py                     entry point — st.navigation, gated by flow state
 │   ├── common.py                  session state, gating rules, streaming bridge, UI atoms
 │   └── views/
-│       ├── 0_Overview.py          worklist + service status
-│       ├── 1_Document_Viewer.py   entry step — runs the pipeline
+│       ├── 1_Document_Viewer.py   landing page — runs the pipeline
 │       ├── 2_Validation_Report.py the release decision
 │       ├── 3_HITL_Corrections.py  streaming re-run
 │       ├── 4_RAG_QA.py            streaming answers (never gated)

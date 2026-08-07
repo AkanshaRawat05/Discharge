@@ -8,8 +8,7 @@ This is a **gated flow**, not five freely clickable tabs.  Navigation is built
 with `st.navigation` from the pipeline state held in `st.session_state`, so a
 view is only reachable once the pipeline has actually put the case there:
 
-    Overview                 always
-    1 · Document Viewer      always — the entry point; runs the pipeline
+    1 · Document Viewer      always — the landing page; runs the pipeline
     2 · Validation Report    once extraction → normalisation → validation ran
     3 · HITL Corrections     once validated (the route when a discharge blocks)
     4 · RAG Q&A              always — queries the FAISS index, not a case
@@ -38,7 +37,6 @@ from common import (  # noqa: E402
     patient_selector,
     register_pages,
     render_nav,
-    sidebar_status,
 )
 
 configure_page()
@@ -47,10 +45,9 @@ init_state()
 VIEWS = Path(__file__).resolve().parent / "views"
 
 pages = {
-    "home": st.Page(str(VIEWS / "0_Overview.py"), title="Overview",
-                    icon=":material/home:", default=True),
     "documents": st.Page(str(VIEWS / "1_Document_Viewer.py"),
-                         title="1 · Document Viewer", icon=":material/description:"),
+                         title="1 · Document Viewer", icon=":material/description:",
+                         default=True),
     "validation": st.Page(str(VIEWS / "2_Validation_Report.py"),
                           title="2 · Validation Report", icon=":material/fact_check:"),
     "corrections": st.Page(str(VIEWS / "3_HITL_Corrections.py"),
@@ -68,9 +65,8 @@ register_pages(pages)
 #  reached yet.
 current = st.navigation(list(pages.values()), position="hidden")
 
-#  Sidebar order: who we are looking at → where we may go → system status.
+#  Sidebar order: who we are looking at → where we may go.
 patient_selector()
 render_nav()
-sidebar_status()
 
 current.run()

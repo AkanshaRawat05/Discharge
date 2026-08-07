@@ -23,6 +23,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
+    english_drug_name,
     findings_table,
     flow_state,
     get_case,
@@ -37,6 +38,10 @@ from common import (  # noqa: E402
     settings,
     store_pipeline_result,
     stream_pipeline,
+)
+from resolutions import (  # noqa: E402
+    apply_resolutions,
+    render_resolution_panel,
 )
 from discharge_ai.common.schemas import Medication  # noqa: E402
 from discharge_ai.validation import elicitation_schema_for  # noqa: E402
@@ -60,13 +65,14 @@ state = flow_state(patient_id)
 # --------------------------------------------------------------------------- #
 #  Context banner
 # --------------------------------------------------------------------------- #
-banner = st.columns([2, 1, 1, 1])
-banner[0].markdown(f"### {case.patient_name or patient_id}")
-with banner[1]:
-    st.markdown("**Current risk**")
-    st.markdown(risk_badge(risk.level.value), unsafe_allow_html=True)
-banner[2].metric("Score", risk.score)
-banner[3].metric("Blocked", "YES" if risk.discharge_blocked else "no")
+with st.container(border=True):
+    banner = st.columns([2, 1, 1, 1])
+    banner[0].markdown(f"### {case.patient_name or patient_id}")
+    with banner[1]:
+        st.markdown("**Current risk**")
+        st.markdown(risk_badge(risk.level.value), unsafe_allow_html=True)
+    banner[2].metric("Score", risk.score)
+    banner[3].metric("Blocked", "Yes" if risk.discharge_blocked else "No")
 
 if risk.hard_guardrails_hit:
     st.error(
@@ -84,8 +90,9 @@ st.divider()
 # --------------------------------------------------------------------------- #
 st.subheader("1 · Medication table")
 st.caption(
-    "Correct any dose, frequency, route or duration that the extractor misread. "
-    "Edits are applied to the case before validation is re-run."
+    "Drug names are shown in English. Correct any dose, frequency, route or "
+    "duration that the extractor misread, or delete a row to remove a "
+    "medicine. Edits are applied to the case before validation is re-run."
 )
 
 MED_COLUMNS = [
@@ -93,10 +100,33 @@ MED_COLUMNS = [
     "period", "remarks", "total_quantity",
 ]
 
-med_rows = [
-    {column: getattr(medication, column, None) for column in MED_COLUMNS}
-    for medication in case.medications
-] or [{column: None for column in MED_COLUMNS}]
+#  Drug names are rendered in English (Amoxicilline → Amoxicillin) so a
+#  reviewer is never asked to reason about a Dutch or Spanish spelling. The
+#  English name is what gets written back to the case on save: it is the
+#  normalised value, it keeps the generated summary in English, and validation
+#  is unaffected because the rules compare on `canonical_drug()`, which maps
+#  both spellings to the same key. The original wording stays visible in the
+#  "Source spellings" expander below for reconciliation against the paper.
+_source_names: dict[int, str] = {}
+med_rows = []
+for row_index, medication in enumerate(case.medications):
+    row = {column: getattr(medication, column, None) for column in MED_COLUMNS}
+    source_name = row.get("medicine_name") or ""
+    english_name = english_drug_name(source_name)
+    if english_name and english_name != source_name:
+        _source_names[row_index] = source_name
+    row["medicine_name"] = english_name or source_name
+    med_rows.append(row)
+
+med_rows = med_rows or [{column: None for column in MED_COLUMNS}]
+
+if _source_names:
+    with st.expander("Source spellings (as written on the original document)"):
+        for index, original in sorted(_source_names.items()):
+            st.markdown(
+                f"- Row {index + 1}: `{original}` → "
+                f"**{english_drug_name(original)}**"
+            )
 
 edited_meds = st.data_editor(
     med_rows,
@@ -120,9 +150,24 @@ edited_meds = st.data_editor(
 st.divider()
 
 # --------------------------------------------------------------------------- #
-#  2. MCP Elicitation Response Form  (dynamic, schema-driven)
+#  2. Resolve blocking findings
 # --------------------------------------------------------------------------- #
-st.subheader("2 · Elicitation Response Form")
+#  Table 4 rules are read-only on view 2. Here each *blocking* finding gets a
+#  control that fixes the underlying record — remove the conflicting medicine,
+#  settle the bill, record the physician's approval, schedule the follow-up.
+#  The controls are matched to findings generically off the finding's own
+#  `details` payload (see dashboard/resolutions.py), and the corrections feed
+#  the same "Re-run validation" pipeline the elicitation form uses.
+st.subheader("2 · Resolve blocking findings")
+
+pending_resolutions = render_resolution_panel(report, case, patient_id)
+
+st.divider()
+
+# --------------------------------------------------------------------------- #
+#  3. MCP Elicitation Response Form  (dynamic, schema-driven)
+# --------------------------------------------------------------------------- #
+st.subheader("3 · Elicitation Response Form")
 
 non_blocking = [field for field in report.completeness.missing_fields if not field.blocking]
 
@@ -175,9 +220,9 @@ else:
 st.divider()
 
 # --------------------------------------------------------------------------- #
-#  3. Risk override + approval decision
+#  4. Risk override + approval decision
 # --------------------------------------------------------------------------- #
-st.subheader("3 · Reviewer decision")
+st.subheader("4 · Reviewer decision")
 
 decision_columns = st.columns([1, 1, 2])
 
@@ -186,13 +231,13 @@ with decision_columns[0]:
         "Risk label override",
         ["(keep computed)", "Low", "Medium", "High"],
         key=f"risk-override-{patient_id}",
-        help="Overrides the computed tier. Recorded in the audit trail with your note.",
+        help="Overrides the computed tier. Recorded in the audit trail.",
     )
 
 with decision_columns[1]:
     approval = st.radio(
         "Approval decision",
-        ["Pending", "Approve", "Approve with edits", "Reject"],
+        ["Pending", "Approve", "Reject"],
         key=f"approval-{patient_id}",
     )
 
@@ -201,26 +246,22 @@ with decision_columns[2]:
         "Reviewer name / id", key=f"reviewer-{patient_id}",
         placeholder="e.g. Dr. R. Greene (staff #4471)",
     )
-    note = st.text_area(
-        "Clinical note", key=f"note-{patient_id}", height=90,
-        placeholder="Why you are approving, editing or rejecting this discharge.",
-    )
 
 if approval == "Approve" and risk.discharge_blocked:
     st.error(
         "This discharge is **blocked** by a Critical finding. Approving it "
-        "overrides a hard safety guardrail — document your justification in the "
-        "clinical note. The override is recorded in the audit trail."
+        "overrides a hard safety guardrail. The override is recorded in the "
+        "audit trail against your reviewer id."
     )
 
 st.divider()
 
 # --------------------------------------------------------------------------- #
-#  4. Save feedback / re-run validation
+#  5. Save feedback / re-run validation
 # --------------------------------------------------------------------------- #
-st.subheader("4 · Save and re-run")
+st.subheader("5 · Save and re-run")
 
-APPROVING = {"Approve", "Approve with edits"}
+APPROVING = {"Approve"}
 
 
 def _feedback_payload() -> dict:
@@ -234,10 +275,13 @@ def _feedback_payload() -> dict:
         "computed_risk_score": risk.score,
         "discharge_blocked": risk.discharge_blocked,
         "overrode_block": bool(approval == "Approve" and risk.discharge_blocked),
-        "clinical_note": note,
         "elicitation_action": elicitation_action,
         "elicitation_answers": elicitation_answers,
         "medication_edits": edited_meds,
+        "blocking_resolutions": [
+            entry for entry in
+            (st.session_state.get("resolutions", {}).get(patient_id, {}) or {}).values()
+        ],
         "trace_id": report.trace_id,
     }
 
@@ -318,6 +362,19 @@ STAGE_PROGRESS = {
 if buttons[1].button("🔁 Re-run validation", type="primary", width="stretch"):
     _apply_medication_edits()
 
+    #  Fold the blocking-finding resolutions into the same working case the
+    #  medication edits just landed on. Order matters: the medication table is
+    #  applied first so a "remove this medicine" resolution operates on the
+    #  reviewer's current rows, not the originally extracted ones.
+    applied_resolutions = apply_resolutions(case, patient_id)
+    if applied_resolutions:
+        st.session_state["cases"][patient_id] = case
+        st.info(
+            "Applying "
+            f"{len(applied_resolutions)} resolution(s):\n\n"
+            + "\n".join(f"- {note}" for note in applied_resolutions)
+        )
+
     kwargs: dict = {}
     if elicitation_action == "accept" and elicitation_answers:
         kwargs["elicitation_answers"] = elicitation_answers
@@ -381,12 +438,20 @@ if buttons[1].button("🔁 Re-run validation", type="primary", width="stretch"):
         goto("validation")
 
 with buttons[2]:
-    st.caption(
-        "**Re-run** replays the MCP Elicitation round-trip with your chosen "
-        "action, so `accept` / `decline` / `cancel` are all exercised for real "
-        "against the Clinical Rules Engine tool on the primary MCP server. "
-        "You are returned to **2 · Validation Report** with the new result."
-    )
+    if pending_resolutions:
+        st.caption(
+            f"**{pending_resolutions} resolution(s) ready.** Re-run applies them "
+            "to the case, replays the MCP Elicitation round-trip with your "
+            "chosen action, and re-evaluates every rule. You are returned to "
+            "**2 · Validation Report** with the new result."
+        )
+    else:
+        st.caption(
+            "**Re-run** replays the MCP Elicitation round-trip with your chosen "
+            "action, so `accept` / `decline` / `cancel` are all exercised for real "
+            "against the Clinical Rules Engine tool on the primary MCP server. "
+            "You are returned to **2 · Validation Report** with the new result."
+        )
 
 # --------------------------------------------------------------------------- #
 #  Feedback history
@@ -404,7 +469,6 @@ if history_path.exists():
                 f"{entry.get('approval_decision')}"
                 + (f" (override → {entry['risk_override']})" if entry.get("risk_override") else "")
                 + (f" · elicitation: {entry.get('elicitation_action')}")
-                + (f"\n\n  > {entry['clinical_note']}" if entry.get("clinical_note") else "")
             )
     except Exception as exc:  # noqa: BLE001
         st.caption(f"Could not read the feedback history: {exc}")
