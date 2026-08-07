@@ -106,11 +106,11 @@
           <td>{{ row.get('strength') or '—' }}</td>
           <td>{{ row.get('dosage') or '—' }}</td>
           <td>{{ row.get('frequency_plain') or row.get('frequency') or '—' }}</td>
-          <td>{{ row.get('route_plain') or row.get('route') or '—' }}</td>
-          <td>{{ row.get('period') or '—' }}</td>
+          <td>{{ row.get('route_plain') or en_route(row.get('route')) or '—' }}</td>
+          <td>{{ en_duration(row.get('period')) or '—' }}</td>
         </tr>
         {% if row.get('remarks') %}
-          <tr><td></td><td colspan="6" class="muted">{{ row.get('remarks') }}</td></tr>
+          <tr><td></td><td colspan="6" class="muted">{{ en_remark(row.get('remarks')) }}</td></tr>
         {% endif %}
       {% endfor %}
       </tbody>
@@ -126,12 +126,12 @@
       <tbody>
       {% for row in summary.lab_table %}
         <tr>
-          <td>{{ row.get('test') }}</td>
+          <td>{{ en_lab(row.get('test')) }}</td>
           <td><strong>{{ row.get('value') or '—' }}</strong></td>
           <td>{{ row.get('unit') or '' }}</td>
           <td class="muted">{{ row.get('reference_range') or '—' }}</td>
-          <td><span class="pill flag-{{ (row.get('flag') or 'NORMAL')|upper }}">
-            {{ row.get('flag') or 'NORMAL' }}</span></td>
+          <td><span class="pill flag-{{ en_flag(row.get('flag')) or 'NORMAL' }}">
+            {{ en_flag(row.get('flag')) or 'NORMAL' }}</span></td>
         </tr>
       {% endfor %}
       </tbody>

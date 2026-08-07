@@ -180,9 +180,14 @@ async def run_pipeline(
             try:
                 normalised = await runner.normalise(patient_id, extracted)
                 result.case = normalised
+                #  `report_progress` is rendered live in the dashboard status
+                #  box, so this string is user-facing. Translation confidence is
+                #  QA metadata and is deliberately not shown — it is still set
+                #  on the case, written to the audit report and attached to the
+                #  LangFuse normalisation span.
                 report_progress(
                     "normalise",
-                    f"translation confidence {normalised.translation_confidence:.2f} "
+                    f"normalised to English "
                     f"({len(normalised.expanded_abbreviations)} abbreviations expanded)",
                 )
             except Exception as exc:  # noqa: BLE001

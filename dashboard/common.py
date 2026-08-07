@@ -853,24 +853,31 @@ def decision_hero(report: Any) -> str:
     #  able to miss a block — but carried by a heavy accent rule and scale
     #  rather than a saturated full-bleed fill, which reads as alarming chrome
     #  on a screen someone looks at all day.
+    #  Single line, deliberately: see the note in `risk_domain_panel` — a
+    #  wrapped style attribute is indented four-plus spaces, which Streamlit's
+    #  markdown pass turns into a code block before the HTML is ever handled.
+    guardrail_chip = (
+        f'<div style="display:inline-block;margin-top:12px;background:{back};'
+        f'color:{fore};border-radius:6px;padding:5px 11px;font-size:.83rem;'
+        f'font-weight:640;">{guardrails}</div>'
+        if guardrails else ""
+    )
+    ink, line, muted = PALETTE["ink"], PALETTE["line"], PALETTE["muted"]
     st.markdown(
-        f"""
-<div style="background:{PALETTE['surface']};border:1px solid {PALETTE['line']};
-            border-left:6px solid {fore};border-radius:10px;
-            padding:22px 26px;margin:4px 0 20px 0;">
-  <div style="font-size:1.9rem;line-height:1.15;font-weight:680;
-              letter-spacing:-.02em;color:{fore};">{icon}&nbsp;{headline}</div>
-  <div style="font-size:1rem;margin-top:10px;color:{PALETTE['ink']};">{detail}</div>
-  {f'<div style="display:inline-block;margin-top:12px;background:{back};color:{fore};border-radius:6px;padding:5px 11px;font-size:.83rem;font-weight:640;">{guardrails}</div>' if guardrails else ''}
-  <div style="font-size:.85rem;margin-top:14px;padding-top:12px;
-              border-top:1px solid {PALETTE['line']};color:{PALETTE['muted']};">
-    Risk <strong style="color:{PALETTE['ink']};">{risk.level.value}</strong>
-    &nbsp;·&nbsp; Score <strong style="color:{PALETTE['ink']};">{risk.score}</strong>
-    &nbsp;·&nbsp; Recommendation
-    <strong style="color:{PALETTE['ink']};">{risk.recommendation.value}</strong>
-  </div>
-</div>
-""",
+        f'<div style="background:{PALETTE["surface"]};border:1px solid {line};'
+        f'border-left:6px solid {fore};border-radius:10px;padding:22px 26px;'
+        f'margin:4px 0 20px 0;">'
+        f'<div style="font-size:1.9rem;line-height:1.15;font-weight:680;'
+        f'letter-spacing:-.02em;color:{fore};">{icon}&nbsp;{headline}</div>'
+        f'<div style="font-size:1rem;margin-top:10px;color:{ink};">{detail}</div>'
+        f"{guardrail_chip}"
+        f'<div style="font-size:.85rem;margin-top:14px;padding-top:12px;'
+        f'border-top:1px solid {line};color:{muted};">'
+        f'Risk <strong style="color:{ink};">{risk.level.value}</strong>'
+        f'&nbsp;·&nbsp; Score <strong style="color:{ink};">{risk.score}</strong>'
+        f'&nbsp;·&nbsp; Recommendation '
+        f'<strong style="color:{ink};">{risk.recommendation.value}</strong>'
+        f"</div></div>",
         unsafe_allow_html=True,
     )
     return decision
@@ -1065,68 +1072,137 @@ def english_text(case: Any, field: str, fallback: Any = None) -> Any:
 
 
 def english_medication_rows(medications: list[Any]) -> list[dict[str, Any]]:
-    """Medication rows with English drug names, for display tables.
+    """Medication rows fully in English, for display tables.
 
-    Keeps the source spelling in a separate column so a reviewer can still
-    reconcile against the paper prescription.
+    Translates every cell the Clinical Normalizer leaves in the source
+    language — drug name, route, duration and remarks — via the display
+    lookups in `dashboard.i18n`.  Frequency codes (`TID`, `q6h PRN`) are
+    clinical abbreviations the Normalizer already expands, so they are left
+    alone here.  Nothing is mutated on the case.
     """
+    from i18n import english_duration, english_remark, english_route
+
     rows: list[dict[str, Any]] = []
     for medication in medications:
         payload = (
             medication if isinstance(medication, dict)
             else medication.model_dump(mode="json")
         )
+        row = dict(payload)
+
         source_name = payload.get("medicine_name") or ""
         display_name = english_drug_name(source_name)
-        row = dict(payload)
         row["medicine_name"] = display_name
         if display_name.strip().lower() != str(source_name).strip().lower():
             row["as_written"] = source_name
+
+        if payload.get("route"):
+            row["route"] = english_route(payload["route"])
+        if payload.get("period"):
+            row["period"] = english_duration(payload["period"])
+        if payload.get("remarks"):
+            row["remarks"] = english_remark(payload["remarks"])
+
         rows.append(row)
     return rows
 
 
+def english_lab_rows(lab_tests: list[Any]) -> list[dict[str, Any]]:
+    """Lab result rows with English test names and flags, for display tables.
+
+    Values, units and reference ranges are numeric/universal and pass through
+    untouched — only the test name and the result flag are language-dependent.
+    """
+    from i18n import english_flag, english_lab_test
+
+    rows: list[dict[str, Any]] = []
+    for test in lab_tests:
+        payload = test if isinstance(test, dict) else test.model_dump(mode="json")
+        row = dict(payload)
+        #  The schema field is `test`; some payloads use `test_name`.
+        for key in ("test", "test_name"):
+            if payload.get(key):
+                row[key] = english_lab_test(payload[key])
+        if payload.get("flag"):
+            row["flag"] = english_flag(payload["flag"])
+        rows.append(row)
+    return rows
+
+
+#  Heatmap intensity (0 clean → 3 severe) as returned by the analytics MCP
+#  tool, mapped to the clinical palette. Index = `intensity`.
+_HEAT_SCALE = [
+    ("#eef4f7", PALETTE["muted"]),      # 0 clean    — near-white
+    ("#d6e9de", PALETTE["ok_fore"]),    # 1 minor    — soft green
+    ("#fbe6c0", PALETTE["warn_fore"]),  # 2 moderate — muted amber
+    ("#f2c2c7", PALETTE["crit_fore"]),  # 3 severe   — desaturated red
+]
+
+
 def risk_domain_panel(heatmap: dict[str, Any]) -> None:
-    """Per-domain risk, rendered from the `generate_risk_heatmap` MCP payload.
+    """Per-domain risk heatmap from the `generate_risk_heatmap` MCP payload.
 
     The Analytics MCP tool returns both a ready-made markdown table and the
-    structured `cells` it was built from.  We render the cells: a markdown blob
-    dropped into the page reads as a wall of text next to the rest of the
-    console, and the structured form lets a reviewer see at a glance which
-    clinical domain is actually driving the score.
+    structured `cells` it was built from.  We render the cells so the panel
+    matches the rest of the console instead of dropping a markdown blob into
+    the page.
+
+    The whole grid is emitted as a **single-line** HTML string on purpose.
+    Streamlit runs the markdown parser over the text before the HTML is
+    handled, so any line indented by four or more spaces — which is exactly
+    what a wrapped `style="…"` attribute looks like — is treated as a fenced
+    code block and the markup renders as literal text (or not at all).
     """
     cells = heatmap.get("cells") or []
     if not cells:
-        st.caption("No domain-level risk recorded for this case.")
+        #  Say *why* nothing is here rather than rendering an empty panel.
+        keys = ", ".join(sorted(heatmap)) if heatmap else "none"
+        st.caption(
+            "No domain-level risk recorded for this case. "
+            f"(heatmap payload keys: {keys})"
+        )
         return
 
     worst = heatmap.get("worst_domain")
+    tiles: list[str] = []
+
     for cell in cells:
         label = cell.get("label") or str(cell.get("domain", "")).replace("_", " ").title()
         score = int(cell.get("score") or 0)
+        intensity = int(cell.get("intensity") or 0)
+        intensity = max(0, min(intensity, len(_HEAT_SCALE) - 1))
+        back, fore = _HEAT_SCALE[intensity]
+        severity = str(cell.get("severity") or "clean")
+        is_worst = cell.get("domain") == worst and score > 0
+        ring = f"box-shadow:inset 0 0 0 2px {PALETTE['crit_fore']};" if is_worst else ""
 
-        if score == 0:
-            fore, back, mark = PALETTE["ok_fore"], PALETTE["ok_back"], "✓"
-        elif cell.get("domain") == worst:
-            fore, back, mark = PALETTE["crit_fore"], PALETTE["crit_back"], "●"
-        else:
-            fore, back, mark = PALETTE["warn_fore"], PALETTE["warn_back"], "●"
-
-        st.markdown(
-            f"""
-<div style="display:flex;align-items:center;justify-content:space-between;
-            background:{back};border-left:3px solid {fore};
-            border-radius:6px;padding:8px 12px;margin-bottom:6px;">
-  <span style="color:{PALETTE['ink']};font-size:.9rem;">{mark}&nbsp;&nbsp;{label}</span>
-  <span style="color:{fore};font-weight:700;font-size:.9rem;">{score}</span>
-</div>
-""",
-            unsafe_allow_html=True,
+        tiles.append(
+            f'<div title="{label}: {severity} (score {score})" '
+            f'style="background:{back};{ring}border-radius:8px;padding:10px 12px;'
+            f'display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+            f'<span style="color:{PALETTE["ink"]};font-size:.82rem;line-height:1.25;">{label}</span>'
+            f'<span style="color:{fore};font-weight:700;font-size:1rem;">{score}</span>'
+            f"</div>"
         )
+
+    legend = "".join(
+        f'<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;">'
+        f'<span style="width:11px;height:11px;border-radius:3px;background:{back};'
+        f'display:inline-block;"></span>'
+        f'<span style="color:{PALETTE["muted"]};font-size:.72rem;">{name}</span></span>'
+        for (back, _fore), name in zip(_HEAT_SCALE, ["clean", "minor", "moderate", "severe"])
+    )
+
+    grid = (
+        '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));'
+        f'gap:8px;margin-bottom:10px;">{"".join(tiles)}</div>'
+        f'<div style="margin-bottom:4px;">{legend}</div>'
+    )
+    st.markdown(grid, unsafe_allow_html=True)
 
     clean = heatmap.get("clean_domains") or []
     if clean:
-        st.caption(f"{len(clean)} domain(s) with no findings.")
+        st.caption(f"{len(clean)} of {len(cells)} domains have no findings.")
 
 
 def trace_link(trace_id: str | None) -> None:

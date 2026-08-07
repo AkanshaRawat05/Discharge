@@ -39,6 +39,11 @@ from common import (  # noqa: E402
     store_pipeline_result,
     stream_pipeline,
 )
+from i18n import (  # noqa: E402
+    english_duration,
+    english_remark,
+    english_route,
+)
 from resolutions import (  # noqa: E402
     apply_resolutions,
     render_resolution_panel,
@@ -116,6 +121,15 @@ for row_index, medication in enumerate(case.medications):
     if english_name and english_name != source_name:
         _source_names[row_index] = source_name
     row["medicine_name"] = english_name or source_name
+    #  Route, duration and remarks are the other cells the Normalizer leaves in
+    #  the source language — translate them for display and for the value the
+    #  reviewer edits, so a correction never re-introduces Dutch or Spanish.
+    if row.get("route"):
+        row["route"] = english_route(row["route"])
+    if row.get("period"):
+        row["period"] = english_duration(row["period"])
+    if row.get("remarks"):
+        row["remarks"] = english_remark(row["remarks"])
     med_rows.append(row)
 
 med_rows = med_rows or [{column: None for column in MED_COLUMNS}]

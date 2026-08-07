@@ -105,8 +105,29 @@ def build_reports(
 def render_summary_html(summary: DischargeSummary) -> str:
     #  No `trace_url` here on purpose — the patient-facing summary does not
     #  carry observability ids. The audit report (render_audit_html) still does.
+    #
+    #  The English display helpers are exposed to the template so the exported
+    #  HTML, the exported PDF and the on-screen tables all render the same
+    #  wording. Without this the reviewer approves "Fasting Glucose" and the
+    #  patient's copy says "उपवास ग्लूकोज".
+    from ..common.display_terms import (
+        english_duration,
+        english_flag,
+        english_lab_test,
+        english_remark,
+        english_route,
+    )
+
     template = _env.get_template("discharge_summary.html")
-    return template.render(summary=summary, hospital=_hospital())
+    return template.render(
+        summary=summary,
+        hospital=_hospital(),
+        en_route=english_route,
+        en_duration=english_duration,
+        en_lab=english_lab_test,
+        en_flag=english_flag,
+        en_remark=english_remark,
+    )
 
 
 def build_summary_reports(
@@ -205,9 +226,17 @@ def _pdf_escape(text: str) -> str:
     out = str(text)
     for old, new in replacements.items():
         out = out.replace(old, new)
-    #  reportlab's Helvetica has no glyphs for non-Latin scripts (Devanagari,
-    #  etc.) and renders them as black boxes — transliterate to a marker.
-    return "".join(ch if ord(ch) < 0x2000 else "?" for ch in out)
+
+    #  reportlab's built-in Helvetica only covers Latin-1. The previous guard
+    #  here tested `ord(ch) < 0x2000`, which let every non-Latin script through
+    #  untouched — Devanagari (U+0900–U+097F) sits well below that bound, so
+    #  Hindi test names were emitted as runs of meaningless Latin glyphs rather
+    #  than being caught. Anything outside Latin-1 is now replaced explicitly so
+    #  an unrenderable character degrades visibly instead of silently.
+    #
+    #  In practice this rarely fires: `_summary_pdf_lines` translates clinical
+    #  terms to English first. It is the backstop for free text we cannot map.
+    return "".join(ch if ord(ch) < 0x0100 else "?" for ch in out)
 
 
 def _audit_pdf_lines(report: ValidationReport) -> list[tuple[str, str]]:
@@ -293,16 +322,30 @@ def _summary_pdf_lines(summary: DischargeSummary) -> list[tuple[str, str]]:
                 continue
             blocks.append(("bullet" if stripped.startswith(("-", "*", "•")) else "body", stripped))
 
+    #  Every cell is rendered through the shared English display layer, for two
+    #  reasons: the printed summary must match what the reviewer approved
+    #  on-screen, and reportlab's built-in fonts have no glyphs for Devanagari
+    #  — untranslated Hindi test names came out as runs of meaningless letters.
+    from ..common.display_terms import (
+        english_duration,
+        english_flag,
+        english_lab_test,
+        english_remark,
+        english_route,
+    )
+
     if summary.prescription_table:
         blocks += [("spacer", ""), ("heading", "Your medicines")]
         for index, row in enumerate(summary.prescription_table, start=1):
+            remarks = english_remark(row.get("remarks"))
             blocks.append((
                 "bullet",
                 f"{row.get('sl_no') or index}. {row.get('medicine_name') or '-'} "
                 f"{row.get('strength') or ''} - {row.get('dosage') or ''} "
                 f"{row.get('frequency_plain') or row.get('frequency') or ''} "
-                f"{row.get('route_plain') or row.get('route') or ''} "
-                f"for {row.get('period') or '-'}",
+                f"{row.get('route_plain') or english_route(row.get('route'))} "
+                f"for {english_duration(row.get('period')) or '-'}"
+                + (f" ({remarks})" if remarks else ""),
             ))
 
     if summary.lab_table:
@@ -310,9 +353,10 @@ def _summary_pdf_lines(summary: DischargeSummary) -> list[tuple[str, str]]:
         for row in summary.lab_table:
             blocks.append((
                 "bullet",
-                f"- {row.get('test')}: {row.get('value') or '-'} {row.get('unit') or ''} "
+                f"- {english_lab_test(row.get('test'))}: "
+                f"{row.get('value') or '-'} {row.get('unit') or ''} "
                 f"(normal {row.get('reference_range') or '-'}) "
-                f"[{row.get('flag') or 'NORMAL'}]",
+                f"[{english_flag(row.get('flag')) or 'NORMAL'}]",
             ))
 
     if summary.bill_snapshot:

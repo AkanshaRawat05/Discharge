@@ -22,6 +22,7 @@ import streamlit.components.v1 as components
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
+    PALETTE,
     artefact_downloads,
     english_drug_name,
     flow_state,
@@ -29,7 +30,6 @@ from common import (  # noqa: E402
     get_report,
     get_summary,
     goto,
-    guardrail_table,
     no_report_warning,
     page_setup,
     require_page,
@@ -37,6 +37,13 @@ from common import (  # noqa: E402
     run_async,
     settings,
     trace_link,
+)
+from i18n import (  # noqa: E402
+    english_duration,
+    english_flag,
+    english_lab_test,
+    english_remark,
+    english_route,
 )
 from discharge_ai.pipeline import stream_summary  # noqa: E402
 from discharge_ai.reporting import render_summary_html  # noqa: E402
@@ -195,9 +202,11 @@ else:
                     "Strength": row.get("strength"),
                     "How much": row.get("dosage"),
                     "How often": row.get("frequency_plain") or row.get("frequency"),
-                    "How to take": row.get("route_plain") or row.get("route"),
-                    "For how long": row.get("period"),
-                    "Notes": row.get("remarks"),
+                    #  `route_plain` is the Summary Generator's own plain-English
+                    #  wording; fall back to translating the raw route.
+                    "How to take": row.get("route_plain") or english_route(row.get("route")),
+                    "For how long": english_duration(row.get("period")),
+                    "Notes": english_remark(row.get("remarks")),
                 }
                 for row in summary.prescription_table
             ]
@@ -212,21 +221,22 @@ else:
         frame = pd.DataFrame(
             [
                 {
-                    "Test": row.get("test"),
+                    "Test": english_lab_test(row.get("test")),
                     "Result": row.get("value"),
                     "Units": row.get("unit"),
                     "Normal range": row.get("reference_range"),
-                    "Status": row.get("flag") or "NORMAL",
+                    "Status": english_flag(row.get("flag")) or "NORMAL",
                 }
                 for row in summary.lab_table
             ]
         )
 
         def _colour(row: object) -> list[str]:
+            #  Status is already normalised to English by `english_flag`.
             status = str(row["Status"]).upper()  # type: ignore[index]
-            if status in {"NORMAL", "NORMAAL", ""}:
-                return ["background-color:#e9f6ee"] * len(row)  # type: ignore[arg-type]
-            return ["background-color:#fdecee"] * len(row)  # type: ignore[arg-type]
+            if status in {"NORMAL", ""}:
+                return [f"background-color:{PALETTE['ok_back']}"] * len(row)  # type: ignore[arg-type]
+            return [f"background-color:{PALETTE['crit_back']}"] * len(row)  # type: ignore[arg-type]
 
         st.dataframe(
             frame.style.apply(_colour, axis=1), width="stretch", hide_index=True
@@ -266,15 +276,14 @@ else:
 st.divider()
 
 # --------------------------------------------------------------------------- #
-#  Guardrails + export
+#  Export
 # --------------------------------------------------------------------------- #
-st.subheader("Guardrails applied to this summary")
-guardrail_table(summary.guardrail_events)
-st.caption(
-    "Every generated section passes the toxicity filter, PII redaction and a "
-    "grounding check against the validated case data before it is shown."
-)
-
+#  The "Guardrails applied to this summary" panel has been removed. The
+#  Responsible-AI guardrails still run on every generated section — toxicity
+#  filtering, grounding/hallucination checks and PII handling — and their
+#  events are still recorded on `summary.guardrail_events` and emitted as
+#  LangFuse guardrail spans. They are simply not shown to the reviewer here;
+#  guardrail activity remains visible on 2 · Validation Report for audit.
 st.subheader("Export")
 artefact_downloads(patient_id)
 

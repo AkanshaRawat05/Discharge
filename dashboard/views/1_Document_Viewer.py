@@ -19,6 +19,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
+    english_lab_rows,
     english_medication_rows,
     english_text,
     get_case,
@@ -155,20 +156,37 @@ for index, doc_type in enumerate(present):
 with tabs[-1]:
     st.subheader("What the extractor read")
 
+    NOT_RECORDED = "— NOT RECORDED —"
+
+    def _display(value: object) -> str:
+        """One column, one type.
+
+        `st.table` hands the column straight to PyArrow, which needs a single
+        type per column. Mixing `int` (age), `bool` (discharge approved) and
+        `str` in the same column raises ArrowTypeError and forces Streamlit
+        into its slow "automatic fixes" fallback, so everything is rendered as
+        text here.
+        """
+        if value is None or value == "":
+            return NOT_RECORDED
+        if isinstance(value, bool):
+            return "Yes" if value else "No"
+        return str(value)
+
     demographics = {
-        "Patient id": case.patient_id,
-        "Name": case.patient_name,
-        "Age": case.age,
-        "Gender": case.gender,
-        "Address": case.address or "— NOT RECORDED —",
-        "Admission date": case.admission_date,
-        "Discharge date": case.discharge_date,
+        "Patient id": _display(case.patient_id),
+        "Name": _display(case.patient_name),
+        "Age": _display(case.age),
+        "Gender": _display(case.gender),
+        "Address": _display(case.address),
+        "Admission date": _display(case.admission_date),
+        "Discharge date": _display(case.discharge_date),
         "Ward / bed": f"{case.ward or '?'} / {case.bed_no or '?'}",
-        "Service line": case.service_line,
-        "Attending physician": case.attending_physician or "— NOT RECORDED —",
-        "Consulting doctors": ", ".join(case.consulting_doctors) or "— NOT RECORDED —",
-        "Discharge approved": case.discharge_approved,
-        "Approved by": case.discharge_approved_by or "— NOT RECORDED —",
+        "Service line": _display(case.service_line),
+        "Attending physician": _display(case.attending_physician),
+        "Consulting doctors": _display(", ".join(case.consulting_doctors)),
+        "Discharge approved": _display(case.discharge_approved),
+        "Approved by": _display(case.discharge_approved_by),
     }
 
     left, right = st.columns(2)
@@ -201,8 +219,9 @@ with tabs[-1]:
 
     st.markdown("**Laboratory results**")
     if case.lab_tests:
+        #  Test names and flags shown in English; values/units are universal.
         st.dataframe(
-            [test.model_dump(mode="json") for test in case.lab_tests],
+            english_lab_rows(case.lab_tests),
             width="stretch", hide_index=True,
         )
     else:

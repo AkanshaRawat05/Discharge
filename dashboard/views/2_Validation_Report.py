@@ -109,7 +109,11 @@ st.divider()
 # --------------------------------------------------------------------------- #
 #  Metric band
 # --------------------------------------------------------------------------- #
-band = st.columns(6)
+#  Five tiles, not six: translation confidence is Normalizer metadata for QA,
+#  not a number a discharge reviewer acts on. It is still produced, still
+#  written to the audit report and still attached to the LangFuse spans — it is
+#  simply not surfaced here.
+band = st.columns(5)
 
 with band[0]:
     st.markdown("**Risk level**")
@@ -130,16 +134,11 @@ with band[1]:
 
 band[2].metric("Recommendation", risk.recommendation.value)
 band[3].metric(
-    "Translation confidence", f"{report.translation_confidence:.2f}",
-    delta=None if report.translation_confidence >= 0.70 else "below minimum",
-    delta_color="inverse",
-)
-band[4].metric(
     "Bill",
     f"{report.bill_total_amount:,.2f}" if report.bill_total_amount is not None else "—",
     report.bill_currency or "",
 )
-band[5].metric("Payment", report.bill_payment_status or "unknown")
+band[4].metric("Payment", report.bill_payment_status or "unknown")
 
 st.markdown(
     "Record language: " + language_badge(report.detected_language)
