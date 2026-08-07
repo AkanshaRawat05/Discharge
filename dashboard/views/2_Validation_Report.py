@@ -213,67 +213,65 @@ if report.completeness.prescription_gaps:
 st.divider()
 
 # --------------------------------------------------------------------------- #
-#  Risk breakdown + analytics
+#  Risk score breakdown
 # --------------------------------------------------------------------------- #
-left, right = st.columns([1, 1])
+#  One section, not two side-by-side panels. The per-domain heatmap and the
+#  line-by-line contributions are two views of the same number — the heatmap
+#  says *where* the risk sits, the table says *what* produced it — so they are
+#  read together, top to bottom, rather than competing for attention in
+#  parallel columns.
+st.subheader("Risk score breakdown")
 
-with left:
-    st.subheader("Risk score breakdown")
-    if risk.contributions:
-        import pandas as pd
+analytics = report.analytics or {}
 
-        rows = [
-            {
-                "Source": item.get("source"),
-                "Item": item.get("rule_id") or item.get("field"),
-                "Weight key": item.get("risk_key"),
-                "Weight": item.get("weight"),
-            }
-            for item in risk.contributions
-        ]
-        frame = pd.DataFrame(rows)
-        st.dataframe(frame, width="stretch", hide_index=True)
+#  Where the risk sits, by clinical domain (generate_risk_heatmap, MCP :8201).
+if analytics and not analytics.get("error"):
+    risk_domain_panel(analytics.get("heatmap") or {})
+    if analytics.get("benchmark_interpretation"):
+        st.caption(analytics["benchmark_interpretation"])
+elif analytics.get("error"):
+    st.caption(f"Domain breakdown unavailable — {analytics['error']}")
+
+#  What produced it, rule by rule.
+if risk.contributions:
+    import pandas as pd
+
+    rows = [
+        {
+            "Source": item.get("source"),
+            "Item": item.get("rule_id") or item.get("field"),
+            "Weight key": item.get("risk_key"),
+            "Weight": item.get("weight"),
+        }
+        for item in risk.contributions
+    ]
+    with st.expander(
+        f"What produced this score — {len(rows)} contribution(s)", expanded=False
+    ):
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
         st.caption(f"Total: **{risk.score}** (weights from `configs/rules.yaml`)")
-    else:
-        st.success("Nothing contributed to the risk score.")
+else:
+    st.success("Nothing contributed to the risk score.")
 
-with right:
-    st.subheader("Risk by clinical domain")
-    analytics = report.analytics or {}
-    if not analytics or analytics.get("error"):
-        st.caption(
-            "No analytics recorded"
-            + (f" — {analytics.get('error')}" if analytics.get("error") else "")
-            + ". The analytics service is not available."
+benchmarks = (analytics.get("benchmarks") or {}).get("benchmarks") or []
+if benchmarks:
+    import pandas as pd
+
+    with st.expander("Population benchmarks", expanded=False):
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Diagnosis": b.get("diagnosis"),
+                        "30-day readmission": f"{b.get('readmission_30d_rate', 0):.1%}",
+                        "Network median": f"{b.get('network_median', 0):.1%}",
+                        "Follow-up attendance": f"{b.get('followup_attendance_rate', 0):.0%}",
+                    }
+                    for b in benchmarks
+                ]
+            ),
+            width="stretch", hide_index=True,
         )
-    else:
-        #  Rendered from the structured `cells` the generate_risk_heatmap MCP
-        #  tool returns, rather than dumping its raw markdown blob — same data,
-        #  legible at a glance.
-        risk_domain_panel(analytics.get("heatmap") or {})
-
-        if analytics.get("benchmark_interpretation"):
-            st.caption(analytics["benchmark_interpretation"])
-
-        benchmarks = (analytics.get("benchmarks") or {}).get("benchmarks") or []
-        if benchmarks:
-            import pandas as pd
-
-            with st.expander("Population benchmarks", expanded=False):
-                st.dataframe(
-                    pd.DataFrame(
-                        [
-                            {
-                                "Diagnosis": b.get("diagnosis"),
-                                "30-day readmission": f"{b.get('readmission_30d_rate', 0):.1%}",
-                                "Network median": f"{b.get('network_median', 0):.1%}",
-                                "Follow-up attendance": f"{b.get('followup_attendance_rate', 0):.0%}",
-                            }
-                            for b in benchmarks
-                        ]
-                    ),
-                    width="stretch", hide_index=True,
-                )
 
 st.divider()
 

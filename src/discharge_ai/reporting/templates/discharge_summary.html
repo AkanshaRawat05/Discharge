@@ -104,8 +104,8 @@
           <td>{{ row.get('sl_no') or loop.index }}</td>
           <td><strong>{{ row.get('medicine_name') or '—' }}</strong></td>
           <td>{{ row.get('strength') or '—' }}</td>
-          <td>{{ row.get('dosage') or '—' }}</td>
-          <td>{{ row.get('frequency_plain') or row.get('frequency') or '—' }}</td>
+          <td>{{ en_dosage(row.get('dosage')) or '—' }}</td>
+          <td>{{ row.get('frequency_plain') or en_frequency(row.get('frequency')) or '—' }}</td>
           <td>{{ row.get('route_plain') or en_route(row.get('route')) or '—' }}</td>
           <td>{{ en_duration(row.get('period')) or '—' }}</td>
         </tr>

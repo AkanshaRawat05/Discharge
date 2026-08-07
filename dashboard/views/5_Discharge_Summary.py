@@ -39,8 +39,10 @@ from common import (  # noqa: E402
     trace_link,
 )
 from i18n import (  # noqa: E402
+    english_dosage,
     english_duration,
     english_flag,
+    english_frequency,
     english_lab_test,
     english_remark,
     english_route,
@@ -200,8 +202,9 @@ else:
                     "#": row.get("sl_no"),
                     "Medicine": english_drug_name(row.get("medicine_name")),
                     "Strength": row.get("strength"),
-                    "How much": row.get("dosage"),
-                    "How often": row.get("frequency_plain") or row.get("frequency"),
+                    "How much": english_dosage(row.get("dosage")),
+                    "How often": row.get("frequency_plain")
+                    or english_frequency(row.get("frequency")),
                     #  `route_plain` is the Summary Generator's own plain-English
                     #  wording; fall back to translating the raw route.
                     "How to take": row.get("route_plain") or english_route(row.get("route")),

@@ -87,6 +87,48 @@ DURATION_UNITS: dict[str, tuple[str, str]] = {
 }
 
 # --------------------------------------------------------------------------- #
+#  Dose forms — the quantity is preserved, only the form word is translated.
+#  `1 गोली` / `1 tableta` -> `1 tablet`.
+# --------------------------------------------------------------------------- #
+DOSE_FORMS: dict[str, tuple[str, str]] = {
+    # source form (lower, unaccented) -> (singular, plural)
+    "tablet": ("tablet", "tablets"),
+    "tablets": ("tablet", "tablets"),
+    "tableta": ("tablet", "tablets"),      # es
+    "tabletas": ("tablet", "tablets"),
+    "comprimido": ("tablet", "tablets"),   # es/pt
+    "comprimidos": ("tablet", "tablets"),
+    "tablett": ("tablet", "tablets"),      # nl/de
+    "tabletten": ("tablet", "tablets"),    # nl
+    "गोली": ("tablet", "tablets"),          # hi
+    "गोलियाँ": ("tablet", "tablets"),
+    "goli": ("tablet", "tablets"),         # hi romanised
+    "capsule": ("capsule", "capsules"),
+    "capsules": ("capsule", "capsules"),
+    "capsula": ("capsule", "capsules"),    # es (accent folded)
+    "capsulas": ("capsule", "capsules"),
+    "capsule(s)": ("capsule", "capsules"),
+    "कैप्सूल": ("capsule", "capsules"),      # hi
+    "drop": ("drop", "drops"),
+    "drops": ("drop", "drops"),
+    "gota": ("drop", "drops"),             # es
+    "gotas": ("drop", "drops"),
+    "druppel": ("drop", "drops"),          # nl
+    "druppels": ("drop", "drops"),
+    "बूंद": ("drop", "drops"),               # hi
+    "puff": ("puff", "puffs"),
+    "puffs": ("puff", "puffs"),
+    "inhalacion": ("puff", "puffs"),       # es
+    "spoon": ("spoonful", "spoonfuls"),
+    "cucharada": ("spoonful", "spoonfuls"),  # es
+    "chamch": ("spoonful", "spoonfuls"),     # hi romanised
+    "चम्मच": ("spoonful", "spoonfuls"),       # hi
+    "injection": ("injection", "injections"),
+    "inyeccion": ("injection", "injections"),  # es
+    "injectie": ("injection", "injections"),   # nl
+}
+
+# --------------------------------------------------------------------------- #
 #  Laboratory test names
 # --------------------------------------------------------------------------- #
 LAB_TEST_TERMS: dict[str, str] = {
@@ -205,21 +247,60 @@ def english_duration(value: str | None) -> str:
     """`7 dagen` → `7 days`, `30 días` → `30 days`. Number is preserved."""
     if not value:
         return ""
+    return _quantified(value, DURATION_UNITS) or str(value).strip()
+
+
+def _quantified(value: str, table: dict[str, tuple[str, str]]) -> str | None:
+    """`<number> <unit>` → `<number> <english unit>`, or None if no match.
+
+    Shared by dose and duration: both are a quantity followed by a word that
+    needs translating while the number is left exactly as written.
+    """
     raw = str(value).strip()
-    match = re.match(r"^\s*(\d+(?:[.,]\d+)?)\s*(.+?)\s*$", raw)
+    match = re.match(r"^\s*(\d+(?:[.,/]\d+)?)\s*(.+?)\s*$", raw)
     if not match:
-        return _lookup(raw, {k: v[1] for k, v in DURATION_UNITS.items()}) or raw
+        entry = table.get(_key(raw))
+        return entry[0] if entry else None
 
     number, unit = match.group(1), match.group(2)
-    entry = DURATION_UNITS.get(_key(unit))
+    entry = table.get(_key(unit))
     if not entry:
-        return raw
+        return None
     singular, plural = entry
     try:
-        is_one = float(number.replace(",", ".")) == 1
+        amount = float(number.replace(",", "."))
     except ValueError:
-        is_one = False
-    return f"{number} {singular if is_one else plural}"
+        #  A fraction such as "1/2": less than a whole, so it reads singular
+        #  ("1/2 tablet", not "1/2 tablets").
+        amount = 0.5 if "/" in number else 1.0
+    return f"{number} {singular if amount <= 1 else plural}"
+
+
+def english_dosage(value: str | None) -> str:
+    """`1 गोली` → `1 tablet`, `1 tableta` → `1 tablet`.
+
+    The quantity is never touched — only the dose-form word is translated, so
+    a reviewer sees the same number that is on the prescription.
+    """
+    if not value:
+        return ""
+    return _quantified(value, DOSE_FORMS) or str(value).strip()
+
+
+def english_frequency(value: str | None) -> str:
+    """`BID` → `twice daily`, using the project's own abbreviation map.
+
+    Frequency codes are Latin clinical shorthand rather than a source
+    language, so they resolve through `terminology.expand_abbreviations` —
+    the same map the Clinical Normalizer uses — instead of a table here.
+    Anything the map does not know is returned unchanged.
+    """
+    if not value:
+        return ""
+    from .terminology import expand_abbreviations
+
+    expanded, _applied = expand_abbreviations(str(value).strip())
+    return expanded or str(value).strip()
 
 
 def english_lab_test(value: str | None) -> str:

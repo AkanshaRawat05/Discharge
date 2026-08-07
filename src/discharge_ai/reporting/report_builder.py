@@ -111,8 +111,10 @@ def render_summary_html(summary: DischargeSummary) -> str:
     #  wording. Without this the reviewer approves "Fasting Glucose" and the
     #  patient's copy says "उपवास ग्लूकोज".
     from ..common.display_terms import (
+        english_dosage,
         english_duration,
         english_flag,
+        english_frequency,
         english_lab_test,
         english_remark,
         english_route,
@@ -127,6 +129,8 @@ def render_summary_html(summary: DischargeSummary) -> str:
         en_lab=english_lab_test,
         en_flag=english_flag,
         en_remark=english_remark,
+        en_dosage=english_dosage,
+        en_frequency=english_frequency,
     )
 
 
@@ -327,8 +331,10 @@ def _summary_pdf_lines(summary: DischargeSummary) -> list[tuple[str, str]]:
     #  on-screen, and reportlab's built-in fonts have no glyphs for Devanagari
     #  — untranslated Hindi test names came out as runs of meaningless letters.
     from ..common.display_terms import (
+        english_dosage,
         english_duration,
         english_flag,
+        english_frequency,
         english_lab_test,
         english_remark,
         english_route,
@@ -338,11 +344,14 @@ def _summary_pdf_lines(summary: DischargeSummary) -> list[tuple[str, str]]:
         blocks += [("spacer", ""), ("heading", "Your medicines")]
         for index, row in enumerate(summary.prescription_table, start=1):
             remarks = english_remark(row.get("remarks"))
+            frequency = row.get("frequency_plain") or english_frequency(
+                row.get("frequency")
+            )
             blocks.append((
                 "bullet",
                 f"{row.get('sl_no') or index}. {row.get('medicine_name') or '-'} "
-                f"{row.get('strength') or ''} - {row.get('dosage') or ''} "
-                f"{row.get('frequency_plain') or row.get('frequency') or ''} "
+                f"{row.get('strength') or ''} - {english_dosage(row.get('dosage'))} "
+                f"{frequency} "
                 f"{row.get('route_plain') or english_route(row.get('route'))} "
                 f"for {english_duration(row.get('period')) or '-'}"
                 + (f" ({remarks})" if remarks else ""),

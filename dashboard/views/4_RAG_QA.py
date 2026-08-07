@@ -4,9 +4,14 @@ View 4 — RAG Q&A.
 Never gated by the pipeline: this view queries the FAISS index, so it only needs
 documents to be indexed, not a particular patient to have reached a stage.
 
-Question input with patient filter · example queries · prompt-injection
-indicator · **token-by-token streaming answer** · source documents · RAG Triad
-metrics tucked into a small expander · guardrail activity · session history.
+Clickable suggested questions · question input · prompt-injection indicator ·
+**token-by-token streaming answer** · source documents · RAG Triad metrics
+tucked into a small expander · guardrail activity · session history.
+
+The whole index is searched: there is no patient filter and no retrieval-depth
+control on the page. Both remain available on the agent itself — `top_k` comes
+from `configs/agent_config.yaml`, and `patient_id` is still an accepted payload
+field — they are simply not decisions a reviewer is asked to make here.
 
 This is the second real-time touchpoint (matching the streaming RAG agent on
 :8105): tokens are painted into a placeholder as they arrive off the wire
@@ -24,7 +29,6 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
-    available_patients,
     guardrail_table,
     page_setup,
     settings,
@@ -41,8 +45,9 @@ page_setup(
     "Ask the indexed patient records. Answers are grounded, cited and scored.",
 )
 
+#  Used only to make the suggested questions concrete ("What medications was
+#  P1019 discharged on?"). Retrieval itself is never scoped to this patient.
 patient_id = st.session_state.get("patient_id")
-patients = available_patients()
 
 st.caption(
     "🔓 Available at any point in the review — it reads the vector index, not "
@@ -108,36 +113,35 @@ st.subheader("Ask a question")
 pid = patient_id or "P1019"
 example_queries = [q.format(pid=pid) for q in EXAMPLE_QUERIES]
 
-controls = st.columns([3, 1, 1])
-question = controls[0].text_area(
+#  Suggested questions come first: clicking one writes it straight into the
+#  question box below.
+#
+#  The click MUST assign to `rag_question_input` — the text area's own widget
+#  key. Streamlit reads a keyed widget's value from session_state and ignores
+#  the `value=` argument on rerun, so the previous approach (staging the text
+#  under a separate `rag_pending_question` key and re-passing it as `value=`)
+#  could never update the box.
+st.caption("Suggested questions — click one to use it")
+example_columns = st.columns(3)
+for idx, example in enumerate(example_queries):
+    if example_columns[idx % 3].button(
+        example, key=f"example-{idx}", width="stretch"
+    ):
+        st.session_state["rag_question_input"] = example
+        st.rerun()
+
+question = st.text_area(
     "Question",
-    value=st.session_state.get("rag_pending_question", ""),
     height=90,
     placeholder=f"What medications was {pid} discharged on?",
     key="rag_question_input",
 )
 
-filter_options = ["(all patients)"] + patients
-default_filter_index = (
-    filter_options.index(patient_id) if patient_id in filter_options else 0
-)
-patient_filter = controls[1].selectbox(
-    "Restrict to patient",
-    filter_options,
-    index=default_filter_index,
-    key="rag_patient_filter",
-)
-top_k = controls[2].slider(
-    "Chunks to retrieve", min_value=2, max_value=10,
-    value=int(settings.rag.get("top_k", 5)), key="rag_top_k",
-)
-
-st.caption("Example questions")
-example_columns = st.columns(3)
-for idx, example in enumerate(example_queries):
-    if example_columns[idx % 3].button(example, key=f"example-{idx}", width="stretch"):
-        st.session_state["rag_pending_question"] = example
-        st.rerun()
+#  Retrieval depth is a tuning parameter, not a clinical decision — it comes
+#  from `configs/agent_config.yaml` rather than a slider on the page. The RAG
+#  agent still accepts `patient_id`; this view simply always searches every
+#  indexed record, which is what "ask the records" means here.
+top_k = int(settings.rag.get("top_k", 5))
 
 ask = st.button("🔎 Ask", type="primary")
 
@@ -145,15 +149,14 @@ ask = st.button("🔎 Ask", type="primary")
 #  Answer — streamed token by token
 # --------------------------------------------------------------------------- #
 if ask and question.strip():
-    scope = None if patient_filter == "(all patients)" else patient_filter
 
     def _events():
         from types import SimpleNamespace
 
         ctx = SimpleNamespace(trace_id=None)
+        #  No `patient_id`: the index is searched in full. The agent still
+        #  supports scoping — this view just does not narrow it.
         payload = {"question": question, "top_k": top_k}
-        if scope:
-            payload["patient_id"] = scope
         return rag_agent.handle(payload, ctx)
 
     st.subheader("Answer")
@@ -288,7 +291,6 @@ if ask and question.strip():
                 "faithfulness": triad.get("faithfulness"),
             }
         )
-        st.session_state["rag_pending_question"] = ""
 
 elif ask:
     st.warning("Type a question first.")

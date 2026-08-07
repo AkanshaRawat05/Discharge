@@ -128,11 +128,26 @@ def inject_theme() -> None:
         f"""
 <style>
   /* ---- Type scale ------------------------------------------------------ */
-  html, body, [class*="st-"] {{
+  /* Scoped to the app root only.  An earlier revision also matched
+     [class*="st-"], which caught Streamlit's Material Symbols spans: those
+     render their glyph from a font ligature, so overriding font-family made
+     them print the ligature *name* ("description", "fact_check") as plain
+     text on top of the nav label. Never set font-family that broadly here. */
+  html, body, .stApp {{
       font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
       color: {PALETTE['ink']};
   }}
   .stApp {{ background: {PALETTE['canvas']}; }}
+
+  /* Belt and braces: whatever else is set, icon elements keep their own font. */
+  [data-testid="stIconMaterial"],
+  .material-symbols-rounded,
+  .material-symbols-outlined {{
+      font-family: "Material Symbols Rounded", "Material Symbols Outlined" !important;
+      /* Ligature names must never wrap or be selectable as words. */
+      white-space: nowrap;
+      overflow: hidden;
+  }}
 
   /* Page title: smaller and calmer than Streamlit's default slab. */
   h1 {{
@@ -642,16 +657,15 @@ def stream_async(async_generator_factory: Callable[[], Any]) -> Iterator[Any]:
             async for item in async_generator_factory():
                 channel.put(("item", item))
 
-        loop = asyncio.new_event_loop()
+        #  `asyncio.run` for the same reason as in `stream_pipeline`: the MCP
+        #  sessions these generators open are anyio task groups, and closing a
+        #  loop without draining them corrupts the next session's cancel scope.
         try:
-            loop.run_until_complete(_pump())
+            asyncio.run(_pump())
         except BaseException as exc:  # noqa: BLE001 — re-raised on the consumer
             channel.put(("error", exc))
         finally:
-            try:
-                loop.close()
-            finally:
-                channel.put(("done", _STREAM_DONE))
+            channel.put(("done", _STREAM_DONE))
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
@@ -683,19 +697,28 @@ def stream_pipeline(patient_id: str, **kwargs: Any) -> Iterator[tuple[str, Any, 
         channel.put(("progress", stage, message))
 
     def _worker() -> None:
-        loop = asyncio.new_event_loop()
+        #  `asyncio.run`, not new_event_loop + run_until_complete + close.
+        #
+        #  The MCP client opens `streamablehttp_client` sessions, which anyio
+        #  backs with a task group and cancel scopes. Closing a loop out from
+        #  under those without cancelling and draining their background tasks
+        #  first leaves the scopes half-torn-down, and the *next* session's
+        #  `session.initialize()` dies with "CancelledError: Cancelled via
+        #  cancel scope". That is why processing a patient from the dashboard
+        #  failed at the validation step whenever the MCP servers were up,
+        #  while the same run from the CLI — one loop, main thread — worked.
+        #
+        #  `asyncio.run` cancels pending tasks and runs `shutdown_asyncgens`
+        #  before closing, which is exactly the teardown those sessions need.
         try:
-            result = loop.run_until_complete(
+            result = asyncio.run(
                 run_pipeline(patient_id, progress=_progress, **kwargs)
             )
             channel.put(("result", result, None))
         except BaseException as exc:  # noqa: BLE001 — re-raised on the consumer
             channel.put(("error", exc, None))
         finally:
-            try:
-                loop.close()
-            finally:
-                channel.put(("done", None, None))
+            channel.put(("done", None, None))
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
@@ -1080,7 +1103,13 @@ def english_medication_rows(medications: list[Any]) -> list[dict[str, Any]]:
     clinical abbreviations the Normalizer already expands, so they are left
     alone here.  Nothing is mutated on the case.
     """
-    from i18n import english_duration, english_remark, english_route
+    from i18n import (
+        english_dosage,
+        english_duration,
+        english_frequency,
+        english_remark,
+        english_route,
+    )
 
     rows: list[dict[str, Any]] = []
     for medication in medications:
@@ -1096,6 +1125,10 @@ def english_medication_rows(medications: list[Any]) -> list[dict[str, Any]]:
         if display_name.strip().lower() != str(source_name).strip().lower():
             row["as_written"] = source_name
 
+        if payload.get("dosage"):
+            row["dosage"] = english_dosage(payload["dosage"])
+        if payload.get("frequency"):
+            row["frequency"] = english_frequency(payload["frequency"])
         if payload.get("route"):
             row["route"] = english_route(payload["route"])
         if payload.get("period"):
@@ -1197,13 +1230,16 @@ def risk_domain_panel(heatmap: dict[str, Any]) -> None:
         width="stretch",
         hide_index=True,
         column_order=("Clinical domain", "Severity", "Score"),
+        #  Sized to the row count so the grid never shows a stub of empty
+        #  rows below the data now that it spans the full page width.
+        height=(len(rows) + 1) * 35 + 3,
     )
 
     clean = heatmap.get("clean_domains") or []
     total = heatmap.get("total_score")
     caption = []
     if total is not None:
-        caption.append(f"Total {total}")
+        caption.append(f"Risk score {total}")
     if worst:
         caption.append(f"driven by **{str(worst).replace('_', ' ')}**")
     if clean:

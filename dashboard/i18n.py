@@ -14,26 +14,32 @@ goes home with another.  This module exists so dashboard code can keep saying
 from __future__ import annotations
 
 from discharge_ai.common.display_terms import (  # noqa: F401
+    DOSE_FORMS,
     DURATION_UNITS,
     FLAG_TERMS,
     LAB_TEST_TERMS,
     REMARK_TERMS,
     ROUTE_TERMS,
+    english_dosage,
     english_duration,
     english_flag,
+    english_frequency,
     english_lab_test,
     english_remark,
     english_route,
 )
 
 __all__ = [
+    "DOSE_FORMS",
     "DURATION_UNITS",
     "FLAG_TERMS",
     "LAB_TEST_TERMS",
     "REMARK_TERMS",
     "ROUTE_TERMS",
+    "english_dosage",
     "english_duration",
     "english_flag",
+    "english_frequency",
     "english_lab_test",
     "english_remark",
     "english_route",

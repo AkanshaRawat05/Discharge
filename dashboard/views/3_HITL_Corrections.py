@@ -40,7 +40,9 @@ from common import (  # noqa: E402
     stream_pipeline,
 )
 from i18n import (  # noqa: E402
+    english_dosage,
     english_duration,
+    english_frequency,
     english_remark,
     english_route,
 )
@@ -121,9 +123,14 @@ for row_index, medication in enumerate(case.medications):
     if english_name and english_name != source_name:
         _source_names[row_index] = source_name
     row["medicine_name"] = english_name or source_name
-    #  Route, duration and remarks are the other cells the Normalizer leaves in
-    #  the source language — translate them for display and for the value the
-    #  reviewer edits, so a correction never re-introduces Dutch or Spanish.
+    #  Dose, frequency, route, duration and remarks are the other cells the
+    #  Normalizer leaves in the source language — translate them for display
+    #  and for the value the reviewer edits, so a correction never
+    #  re-introduces Dutch, Spanish or Hindi.
+    if row.get("dosage"):
+        row["dosage"] = english_dosage(row["dosage"])
+    if row.get("frequency"):
+        row["frequency"] = english_frequency(row["frequency"])
     if row.get("route"):
         row["route"] = english_route(row["route"])
     if row.get("period"):
