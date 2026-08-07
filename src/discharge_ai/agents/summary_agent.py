@@ -371,6 +371,11 @@ async def handle(payload: dict[str, Any], ctx: Any) -> AsyncIterator[Any]:
     audience = str(payload.get("audience", "patient")).lower()
     force = bool(payload.get("force", False))
 
+    #  known_names is registered so PII masking still fires the patient's name
+    #  when we send prompts to the LLM or write to LangFuse (PDF Table 12
+    #  scopes redaction to "external LLM calls, logging"). We DO NOT run
+    #  manager.redact() on the section text emitted to the patient — see the
+    #  section-write loop below for the rationale.
     manager = guardrails(trace_id, known_names=[case.patient_name or ""])
 
     # ---- refuse to auto-generate a blocked discharge -----------------------
@@ -463,9 +468,14 @@ async def handle(payload: dict[str, Any], ctx: Any) -> AsyncIterator[Any]:
             if not text:
                 text = _deterministic_section(section_key, case)
 
-            #  Toxicity + PII guardrails on everything that reaches the patient.
+            #  Toxicity is filtered on everything the patient sees.
+            #  PII redaction is intentionally NOT applied to the summary body:
+            #  this artefact IS the patient's own take-home document, so
+            #  masking their own name / phone / address on it would defeat its
+            #  purpose. PDF Table 12 scopes PII/PHI redaction to external LLM
+            #  calls and logs (already applied via `manager.redact(..., purpose=
+            #  "logging")` elsewhere), not to reviewer-facing output.
             text = manager.filter_output(text, section=section_key)
-            text = manager.redact(text, purpose="patient_summary")
 
         summary.sections.append(
             SummarySection(key=section_key, title=title, content=text)

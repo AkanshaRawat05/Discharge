@@ -99,16 +99,31 @@ async def run_pipeline(
     patient_id: str,
     *,
     mode: str = "local",
-    generate_summary: bool = True,
+    generate_summary: bool = False,
     force_summary: bool = False,
     use_llm_extraction: bool = True,
     elicitation_answers: dict[str, Any] | None = None,
     elicitation_decline: bool = False,
     elicitation_cancel: bool = False,
+    initial_case: ExtractedCase | None = None,
     trace_id: str | None = None,
     progress: ProgressFn | None = None,
 ) -> PipelineResult:
-    """Run extract → normalise → validate (→ summarise) for one patient."""
+    """Run extract → normalise → validate for one patient.
+
+    Per PDF §2.5 / §8 (Table 13), the discharge summary must only be produced on
+    an explicit reviewer request — the dashboard's Generate button on view 5 —
+    never as a silent side-effect of validation.  `generate_summary` therefore
+    defaults to False; pass True only from a code path that represents an
+    explicit user-initiated summary request.
+
+    ``initial_case`` — the HITL round-trip: when the reviewer has edited the
+    medication table (or answered elicitation prompts) on view 3, we must NOT
+    re-parse the source documents from disk on the re-run because that would
+    overwrite the reviewer's corrections. Pass the edited case here and the
+    extract + normalise stages are skipped; validation runs against the
+    reviewer-authoritative case verbatim.
+    """
     patient_id = patient_id.strip().upper()
     trace_id = trace_id or tracing.start_case_trace(patient_id)
     result = PipelineResult(patient_id=patient_id, trace_id=trace_id, mode=mode)
@@ -128,39 +143,54 @@ async def run_pipeline(
         f"pipeline:{patient_id}", trace_id=trace_id, input={"mode": mode}
     ) as span:
         # ---- 1. extract ----------------------------------------------------
-        report_progress("extract", "Clinical Extractor Agent (LangGraph :8100)…")
-        try:
-            extracted = await runner.extract(patient_id, use_llm_extraction)
-        except Exception as exc:  # noqa: BLE001
-            result.errors.append(f"extraction failed: {type(exc).__name__}: {exc}")
-            span.fail(exc)
-            report_progress("error", result.errors[-1])
-            return result
-
-        result.case = extracted
-        report_progress(
-            "extract",
-            f"extracted {len(extracted.medications)} medication(s), "
-            f"{len(extracted.lab_tests)} lab result(s); language "
-            f"{extracted.detected_language}",
-        )
-
-        # ---- 2. normalise --------------------------------------------------
-        report_progress("normalise", "Clinical Normalizer Agent (LangGraph :8102)…")
-        try:
-            normalised = await runner.normalise(patient_id, extracted)
-            result.case = normalised
+        if initial_case is not None:
+            #  HITL round-trip: use the reviewer's edited case verbatim — do NOT
+            #  re-parse from disk (that would silently discard their corrections).
+            #  Normalisation already ran on the first pass; skipping it here also
+            #  ensures the reviewer's exact medication names survive.
+            extracted = initial_case
+            result.case = extracted
             report_progress(
-                "normalise",
-                f"translation confidence {normalised.translation_confidence:.2f} "
-                f"({len(normalised.expanded_abbreviations)} abbreviations expanded)",
+                "extract",
+                f"using reviewer-edited case ({len(extracted.medications)} medication(s), "
+                f"{len(extracted.lab_tests)} lab result(s)) — extract + normalise "
+                "skipped to preserve HITL corrections",
             )
-        except Exception as exc:  # noqa: BLE001
-            #  Normalisation is enhancement, not a gate — carry on with the raw case.
-            log.warning("Normalisation failed for %s: %s", patient_id, exc)
-            result.errors.append(f"normalisation degraded: {type(exc).__name__}: {exc}")
             normalised = extracted
-            report_progress("normalise", f"degraded: {exc}")
+        else:
+            report_progress("extract", "Clinical Extractor Agent (LangGraph :8100)…")
+            try:
+                extracted = await runner.extract(patient_id, use_llm_extraction)
+            except Exception as exc:  # noqa: BLE001
+                result.errors.append(f"extraction failed: {type(exc).__name__}: {exc}")
+                span.fail(exc)
+                report_progress("error", result.errors[-1])
+                return result
+
+            result.case = extracted
+            report_progress(
+                "extract",
+                f"extracted {len(extracted.medications)} medication(s), "
+                f"{len(extracted.lab_tests)} lab result(s); language "
+                f"{extracted.detected_language}",
+            )
+
+            # ---- 2. normalise ----------------------------------------------
+            report_progress("normalise", "Clinical Normalizer Agent (LangGraph :8102)…")
+            try:
+                normalised = await runner.normalise(patient_id, extracted)
+                result.case = normalised
+                report_progress(
+                    "normalise",
+                    f"translation confidence {normalised.translation_confidence:.2f} "
+                    f"({len(normalised.expanded_abbreviations)} abbreviations expanded)",
+                )
+            except Exception as exc:  # noqa: BLE001
+                #  Normalisation is enhancement, not a gate — carry on with the raw case.
+                log.warning("Normalisation failed for %s: %s", patient_id, exc)
+                result.errors.append(f"normalisation degraded: {type(exc).__name__}: {exc}")
+                normalised = extracted
+                report_progress("normalise", f"degraded: {exc}")
 
         # ---- 3. validate ---------------------------------------------------
         report_progress("validate", "Clinical Validation Agent (LangGraph :8101)…")

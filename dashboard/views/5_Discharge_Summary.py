@@ -95,10 +95,9 @@ st.divider()
 # --------------------------------------------------------------------------- #
 #  Generate / regenerate
 # --------------------------------------------------------------------------- #
-controls = st.columns([1, 1, 3])
-audience = controls[0].selectbox("Audience", ["patient", "clinician"], key="audience")
-generate = controls[1].button("✍️ Generate summary", type="primary", width="stretch")
-controls[2].caption(
+controls = st.columns([1, 3])
+generate = controls[0].button("✍️ Generate summary", type="primary", width="stretch")
+controls[1].caption(
     "The Summary Generator streams section by section over A2A: "
     "patient → medicines → labs → bill → instructions."
     + (

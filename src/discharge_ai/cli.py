@@ -6,9 +6,10 @@ Command-line entry point — useful for smoke-testing without any UI.
 
     python -m discharge_ai.cli doctor                 # environment check
     python -m discharge_ai.cli scan                   # what documents exist
-    python -m discharge_ai.cli run P1019              # full pipeline, one patient
+    python -m discharge_ai.cli run P1019              # extract → normalise → validate
     python -m discharge_ai.cli run --all              # every patient
-    python -m discharge_ai.cli run P1022 --force      # override a blocked discharge
+    python -m discharge_ai.cli run P1019 --summary    # …and also generate the summary
+    python -m discharge_ai.cli run P1022 --summary --force  # override a blocked case
     python -m discharge_ai.cli ask "what meds for P1019?"
     python -m discharge_ai.cli index                  # rebuild the FAISS index
     python -m discharge_ai.cli mcp                    # list MCP tools/resources/prompts
@@ -135,7 +136,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             run_pipeline(
                 patient_id,
                 mode=mode,
-                generate_summary=not args.no_summary,
+                generate_summary=args.summary,
                 force_summary=args.force,
                 use_llm_extraction=not args.no_llm,
                 progress=progress,
@@ -293,10 +294,12 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--all", action="store_true", help="process every patient")
     run_parser.add_argument("--mode", choices=["local", "a2a"],
                             help="execution mode (default: auto-detect)")
+    run_parser.add_argument("--summary", action="store_true",
+                            help="also generate the discharge summary after validation "
+                                 "(off by default per PDF §2.5 — the summary is a "
+                                 "reviewer-requested step)")
     run_parser.add_argument("--force", action="store_true",
-                            help="generate a summary even if the discharge is blocked")
-    run_parser.add_argument("--no-summary", action="store_true",
-                            help="stop after validation")
+                            help="with --summary, generate even if the discharge is blocked")
     run_parser.add_argument("--no-llm", action="store_true",
                             help="deterministic extraction only")
     run_parser.set_defaults(func=cmd_run)

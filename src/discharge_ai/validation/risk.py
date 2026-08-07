@@ -55,7 +55,6 @@ _RULE_TO_GUARDRAIL = {
     "allergy_contradiction_check": "allergy_contradiction",
     "high_risk_med_check": "high_risk_med_missing_in_ehr",
     "prescription_completeness_check": "incomplete_prescription_fields",
-    "translation_confidence_check": "translation_confidence_below_threshold",
 }
 
 

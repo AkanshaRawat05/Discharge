@@ -309,10 +309,9 @@ if buttons[0].button("💾 Save feedback", width="stretch"):
 # --------------------------------------------------------------------------- #
 #  Fractions the progress bar walks through as each pipeline stage reports in.
 STAGE_PROGRESS = {
-    "extract": 0.20,
-    "normalise": 0.40,
-    "validate": 0.65,
-    "summarise": 0.85,
+    "extract": 0.25,
+    "normalise": 0.50,
+    "validate": 0.85,
     "index": 0.95,
 }
 
@@ -327,10 +326,15 @@ if buttons[1].button("🔁 Re-run validation", type="primary", width="stretch"):
     elif elicitation_action == "cancel":
         kwargs["elicitation_cancel"] = True
 
-    force = approval in APPROVING
-
     #  Live indicator: a real progress bar plus a stage log that grows as the
     #  agents report in, not a spinner that hides the whole run.
+    #
+    #  Two behaviours the reviewer relies on:
+    #   1. `initial_case=case`  — feed the reviewer-edited case straight into
+    #      validation so extract does NOT re-parse the PDFs and overwrite the
+    #      corrections (removed medicines stay removed, edited doses stay edited).
+    #   2. `generate_summary=False` — per PDF §2.5, a re-validation must not
+    #      silently generate a summary; the reviewer requests it on view 5.
     st.markdown("**Re-running the pipeline with your corrections**")
     progress_bar = st.progress(0.0, text="starting…")
     log_box = st.empty()
@@ -340,9 +344,9 @@ if buttons[1].button("🔁 Re-run validation", type="primary", width="stretch"):
     for kind, payload, message in stream_pipeline(
         patient_id,
         mode=st.session_state["execution_mode"],
-        generate_summary=True,
-        force_summary=force,
+        generate_summary=False,
         use_llm_extraction=False,     # keep the reviewer's values verbatim
+        initial_case=case,            # the reviewer-edited case — do not re-parse
         trace_id=report.trace_id,
         **kwargs,
     ):
@@ -363,7 +367,7 @@ if buttons[1].button("🔁 Re-run validation", type="primary", width="stretch"):
         st.error("Re-run failed:\n\n" + "\n".join(f"- {e}" for e in errors))
     else:
         store_pipeline_result(result)
-        if force:
+        if approval in APPROVING:
             #  Sign-off survives the re-validation the reviewer just authorised.
             mark_signed_off(patient_id, reviewer, approved=True)
 

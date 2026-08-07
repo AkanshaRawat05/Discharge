@@ -14,8 +14,11 @@ Cross-validation against the Mock EHR, care plan and labs
     bill_settlement_check         Critical  bill not PAID / no guarantee letter
 
 Plus the supplementary rules rules.yaml demands (medication_added,
-high_risk_med_missing_in_ehr, counselling, translation confidence,
-always-HITL service lines, incomplete prescription rows).
+high_risk_med_missing_in_ehr, counselling, always-HITL service lines,
+incomplete prescription rows).
+
+Translation confidence is metadata from the Normalizer Agent — not a validation
+rule. It is displayed on the report but never creates a Finding or a rule_id.
 
 Drug comparison runs on canonicalised INN names, so the Spanish "Metformina"
 reconciles against the EHR's "Metformin" and the Dutch "Amoxicilline" still
@@ -32,7 +35,6 @@ from ..common.rules import (
     ALL_RULES_BY_ID,
     always_hitl_service_lines,
     high_risk_medications,
-    quality_thresholds,
 )
 from ..common.schemas import ExtractedCase, Severity, ValidationFinding
 from ..common.terminology import (
@@ -370,25 +372,6 @@ def _check_bill(case: ExtractedCase) -> list[ValidationFinding]:
     ]
 
 
-def _check_translation_confidence(case: ExtractedCase) -> list[ValidationFinding]:
-    minimum = float(quality_thresholds().get("translation_confidence_min", 0.70))
-    if case.translation_confidence >= minimum:
-        return []
-
-    return [
-        _finding(
-            "translation_confidence_check",
-            f"Translation confidence {case.translation_confidence:.2f} is below the "
-            f"required minimum {minimum:.2f} for source language "
-            f"'{case.detected_language}' — translated clinical content must be "
-            "verified by a bilingual reviewer",
-            translation_confidence=round(case.translation_confidence, 3),
-            minimum=minimum,
-            source_language=case.detected_language,
-        )
-    ]
-
-
 def _check_service_line(case: ExtractedCase, ehr: dict[str, Any]) -> list[ValidationFinding]:
     """rules.yaml forces HITL for paediatric / obstetric / oncology cases."""
     demographics = ehr.get("demographics", {}) or {}
@@ -476,7 +459,6 @@ def cross_validate(
     findings += _check_abnormal_labs(case, ehr_bundle)
     findings += _check_discharge_approval(case)
     findings += _check_bill(case)
-    findings += _check_translation_confidence(case)
     findings += _check_service_line(case, ehr_bundle)
     findings += _check_prescription_rows(case)
 

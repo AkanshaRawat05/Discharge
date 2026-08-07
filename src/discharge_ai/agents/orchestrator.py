@@ -64,9 +64,14 @@ Rules:
 #  A2A orchestration
 # --------------------------------------------------------------------------- #
 async def process_case(
-    patient_id: str, *, mode: str | None = None, force_summary: bool = False,
+    patient_id: str, *, mode: str | None = None, generate_summary: bool = False,
+    force_summary: bool = False,
 ) -> dict[str, Any]:
-    """Run the full pipeline for one patient over A2A (or locally as fallback)."""
+    """Run extract → normalise → validate for one patient over A2A (or locally).
+
+    Per PDF §2.5, the discharge summary is a separate, explicitly-requested step
+    — the caller must pass `generate_summary=True` to trigger it.
+    """
     resolved_mode = mode or default_mode()
     trace_id = tracing.start_case_trace(patient_id)
 
@@ -74,7 +79,7 @@ async def process_case(
     result = await run_pipeline(
         patient_id,
         mode=resolved_mode,
-        generate_summary=True,
+        generate_summary=generate_summary,
         force_summary=force_summary,
         trace_id=trace_id,
     )
@@ -211,7 +216,7 @@ def build_ui():  # noqa: ANN201
 
     patient_ids = sorted(scan_incoming().keys())
 
-    def _run_pipeline(patient_id: str, mode: str, force: bool):  # noqa: ANN202
+    def _run_pipeline(patient_id: str, mode: str):  # noqa: ANN202
         if not patient_id:
             return "Select a patient first.", "{}"
         lines: list[str] = []
@@ -219,12 +224,13 @@ def build_ui():  # noqa: ANN201
         def progress(stage: str, message: str) -> None:
             lines.append(f"[{stage}] {message}")
 
+        #  Per PDF §2.5, the summary is a separate reviewer-requested step —
+        #  this button only runs extract → normalise → validate.
         result = asyncio.run(
             run_pipeline(
                 patient_id,
                 mode=mode,
-                generate_summary=True,
-                force_summary=force,
+                generate_summary=False,
                 progress=progress,
             )
         )
@@ -236,7 +242,6 @@ def build_ui():  # noqa: ANN201
             f"**Recommendation:** {payload['recommendation']}",
             f"**Discharge blocked:** {payload['discharge_blocked']}",
             f"**Human review required:** {payload['hitl_required']}",
-            f"**Summary generated:** {payload['summary_generated']}",
             f"**Mode:** {payload['mode']} | **Trace:** `{payload['trace_id']}`",
         ]
         if payload.get("trace_url"):
@@ -341,6 +346,11 @@ def build_ui():  # noqa: ANN201
         )
 
         with gr.Tab("Process a discharge"):
+            gr.Markdown(
+                "Runs extract → normalise → validate. The discharge summary is "
+                "generated separately by a reviewer on the HITL dashboard "
+                "(view 5), per PDF §2.5."
+            )
             with gr.Row():
                 patient_input = gr.Dropdown(
                     choices=patient_ids,
@@ -352,16 +362,12 @@ def build_ui():  # noqa: ANN201
                     label="Execution mode",
                     info="a2a = call each agent over the A2A protocol",
                 )
-                force_input = gr.Checkbox(
-                    value=False,
-                    label="Force summary even if discharge is blocked",
-                )
             run_button = gr.Button("Run the pipeline", variant="primary")
             pipeline_output = gr.Markdown()
             pipeline_json = gr.Code(language="json", label="Full result")
             run_button.click(
                 _run_pipeline,
-                inputs=[patient_input, mode_input, force_input],
+                inputs=[patient_input, mode_input],
                 outputs=[pipeline_output, pipeline_json],
             )
 

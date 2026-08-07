@@ -126,7 +126,6 @@ RISK_DOMAINS: dict[str, tuple[str, ...]] = {
     "documentation_quality": (
         "missing_mandatory_field", "missing_address", "missing_gender",
     ),
-    "language_quality": ("low_translation_confidence",),
     "financial_clearance": ("bill_unpaid_with_discharge_ok",),
 }
 
@@ -147,7 +146,7 @@ async def calculate_risk_score(
     patient_id: str,
     risk_keys: list[str] | None = None,
     missing_field_count: int = 0,
-    translation_confidence: float = 1.0,
+    translation_confidence: float = 1.0,   # accepted but not scored (metadata only)
     discharge_blocked: bool = False,
 ) -> dict[str, Any]:
     """Composite risk score for one discharge case.
@@ -158,6 +157,7 @@ async def calculate_risk_score(
                                 e.g. ["allergy_contradiction", "followup_missing"].
         missing_field_count:    count of non-blocking missing mandatory fields.
         translation_confidence: 0..1 confidence from the Normalizer Agent.
+                                Metadata only — never a risk contributor per PDF §2.3.
         discharge_blocked:      whether any Critical rule already blocks release.
     """
     with tracing.tool_span(
@@ -190,22 +190,12 @@ async def calculate_risk_score(
                  "domain": "documentation_quality"}
             )
 
-        translation_flagged = translation_confidence < 0.70
-        if translation_flagged and "low_translation_confidence" not in keys:
-            weight = int(weights.get("low_translation_confidence", 3))
-            total += weight
-            breakdown.append(
-                {"risk_key": "low_translation_confidence", "weight": weight,
-                 "translation_confidence": round(translation_confidence, 3),
-                 "known_key": True, "domain": "language_quality"}
-            )
-            keys.append("low_translation_confidence")
+        #  Translation confidence is Normalizer metadata (PDF §2.3), never a
+        #  risk contributor and never a guardrail — it does not enter scoring.
 
         guardrails_hit = sorted(
-            {key for key in keys if key in guardrail_catalogue}
-            | ({"translation_confidence_below_threshold"} if translation_flagged else set())
+            key for key in keys if key in guardrail_catalogue
         )
-        guardrails_hit = [g for g in guardrails_hit if g in guardrail_catalogue]
 
         if total <= thresholds["low_max"]:
             level = "Low"

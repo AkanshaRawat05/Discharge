@@ -116,7 +116,6 @@ risk_scoring_matrix:
     diagnosis_mismatch: 4
     followup_missing: 2
     abnormal_lab_unresolved: 3
-    low_translation_confidence: 3
     high_risk_med_no_counseling: 4
     bill_unpaid_with_discharge_ok: 5   # business: bill needs settlement before release
   thresholds:
@@ -126,7 +125,6 @@ risk_scoring_matrix:
     - allergy_contradiction
     - high_risk_med_missing_in_ehr
     - incomplete_prescription_fields
-    - translation_confidence_below_threshold
     - rag_unsafe_response
     - service_line_pediatric
     - service_line_obstetric

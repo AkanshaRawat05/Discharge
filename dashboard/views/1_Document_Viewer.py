@@ -190,24 +190,21 @@ st.divider()
 # --------------------------------------------------------------------------- #
 st.subheader("Process this patient")
 st.caption(
-    "Runs Clinical Extractor → Clinical Normalizer → Clinical Validation "
-    "→ Discharge Summary Generator. In **a2a** mode each agent is called over "
-    "the A2A protocol; in **local** mode the handlers run in this process. "
-    "You are taken to **2 · Validation Report** when it finishes."
+    "Runs Clinical Extractor → Clinical Normalizer → Clinical Validation. "
+    "In **a2a** mode each agent is called over the A2A protocol; in **local** "
+    "mode the handlers run in this process. You are taken to **2 · Validation "
+    "Report** when it finishes. The discharge summary is a separate step: it "
+    "is only generated when a reviewer clicks **Generate summary** on "
+    "**5 · Discharge Summary**."
 )
 
-controls = st.columns([1, 1, 1, 2])
+controls = st.columns([1, 3])
 use_llm = controls[0].checkbox(
     "LLM gap-filling", value=True,
     help="Let the LLM fill only the fields the deterministic parser could not read.",
 )
-generate_summary = controls[1].checkbox("Generate summary", value=True)
-force_summary = controls[2].checkbox(
-    "Force summary if blocked", value=False,
-    help="Reviewer override — generate a summary even when validation blocks release.",
-)
 
-if controls[3].button("▶ Process this patient", type="primary", width="stretch"):
+if controls[1].button("▶ Process this patient", type="primary", width="stretch"):
     mode = st.session_state["execution_mode"]
     status_box = st.status(f"Processing {patient_id} in {mode} mode…", expanded=True)
     result = None
@@ -216,8 +213,7 @@ if controls[3].button("▶ Process this patient", type="primary", width="stretch
         for kind, payload, message in stream_pipeline(
             patient_id,
             mode=mode,
-            generate_summary=generate_summary,
-            force_summary=force_summary,
+            generate_summary=False,
             use_llm_extraction=use_llm,
         ):
             if kind == "progress":
