@@ -6,8 +6,8 @@ Pluggable text embeddings for the FAISS clinical vector store.
 
 Three providers, selected with `EMBEDDING_PROVIDER` in `.env`:
 
-    bedrock                Amazon Titan Text Embeddings (default — no heavy deps)
-    sentence_transformers  the spec model all-MiniLM-L6-v2 (needs torch)
+    sentence_transformers  the spec model all-MiniLM-L6-v2 (default; local, torch)
+    bedrock                Amazon Titan Text Embeddings (no heavy deps)
     hashing                offline deterministic hashing embeddings, zero deps
 
 Any provider that fails at runtime degrades to `hashing` so indexing and

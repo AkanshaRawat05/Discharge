@@ -4,8 +4,7 @@
 # =============================================================================
 #   pip install -r requirements.txt
 #
-#  Heavy / optional extras (local sentence-transformer embeddings, OCR) live in
-#  requirements-optional.txt so the core stack installs quickly.
+#  Optional extras (OCR for brand-new scans) live in requirements-optional.txt.
 # =============================================================================
 
 # --- Configuration / utilities ----------------------------------------------
@@ -49,6 +48,11 @@ a2a-sdk>=0.2.16,<0.3
 # --- Vector store / RAG ------------------------------------------------------
 faiss-cpu>=1.8.0
 numpy>=1.26.0
+# The specification's embedding model, sentence-transformers/all-MiniLM-L6-v2,
+# runs locally through this package (it pulls PyTorch, ~2.5 GB on first install).
+# If the install is not viable, set EMBEDDING_PROVIDER=bedrock or =hashing in
+# .env — embeddings.py degrades to hashing on its own if the import fails.
+sentence-transformers>=3.0.0
 
 # --- Observability -----------------------------------------------------------
 langfuse>=2.50.0

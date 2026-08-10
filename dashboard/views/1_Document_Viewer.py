@@ -29,6 +29,8 @@ from common import (  # noqa: E402
     store_pipeline_result,
     stream_pipeline,
 )
+from uploads import render_upload_panel  # noqa: E402
+
 from discharge_ai.common.doc_loader import load_patient_documents  # noqa: E402
 from discharge_ai.common.terminology import language_name  # noqa: E402
 
@@ -37,9 +39,13 @@ page_setup(
     "Inspect what the hospital sent us, then hand the case to the agents.",
 )
 
+#  Above the patient check on purpose: uploading is how the first patient gets
+#  into an empty incoming folder.
+render_upload_panel()
+
 patient_id = st.session_state.get("patient_id")
 if not patient_id:
-    st.info("Select a patient in the sidebar to begin.")
+    st.info("Select a patient in the sidebar, or upload documents above to begin.")
     st.stop()
 
 documents = load_patient_documents(patient_id)

@@ -2,7 +2,7 @@
 reporting/report_builder.py
 ===========================
 
-Renders the two clinician-facing artefacts the specification demands (§2.5):
+Renders the two clinician-facing artifacts the specification demands (§2.5):
 
 * **JSON** for system consumption — the full `ValidationReport` / `DischargeSummary`
 * **HTML** for clinicians — Jinja2 templates, also served over MCP as
@@ -71,7 +71,7 @@ def build_reports(
     if not report.rules_version:
         report.rules_version = rules_version()
 
-    artefacts: dict[str, str] = {}
+    artifacts: dict[str, str] = {}
     payload = report.model_dump(mode="json")
     payload["trace_url"] = tracing.trace_url(report.trace_id)
     html = render_audit_html(report)
@@ -87,16 +87,16 @@ def build_reports(
         json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     html_path.write_text(html, encoding="utf-8")
-    artefacts["json"] = str(json_path)
-    artefacts["html"] = str(html_path)
+    artifacts["json"] = str(json_path)
+    artifacts["html"] = str(html_path)
 
     if pdf:
         pdf_path = directory / f"{report.patient_id}_audit.pdf"
         if write_pdf(_audit_pdf_lines(report), pdf_path):
-            artefacts["pdf"] = str(pdf_path)
+            artifacts["pdf"] = str(pdf_path)
 
     log.info("Audit report written for %s → %s", report.patient_id, html_path.name)
-    return artefacts
+    return artifacts
 
 
 # --------------------------------------------------------------------------- #
@@ -138,7 +138,7 @@ def build_summary_reports(
     summary: DischargeSummary, *, write_files: bool = True, pdf: bool = False
 ) -> dict[str, str]:
     """Write `<patient>_summary.json` + `.html` (+ `.pdf`)."""
-    artefacts: dict[str, str] = {}
+    artifacts: dict[str, str] = {}
     payload = summary.model_dump(mode="json")
     payload["markdown"] = summary.as_markdown()
     html = render_summary_html(summary)
@@ -154,16 +154,16 @@ def build_summary_reports(
         json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     html_path.write_text(html, encoding="utf-8")
-    artefacts["json"] = str(json_path)
-    artefacts["html"] = str(html_path)
+    artifacts["json"] = str(json_path)
+    artifacts["html"] = str(html_path)
 
     if pdf:
         pdf_path = directory / f"{summary.patient_id}_summary.pdf"
         if write_pdf(_summary_pdf_lines(summary), pdf_path):
-            artefacts["pdf"] = str(pdf_path)
+            artifacts["pdf"] = str(pdf_path)
 
     log.info("Discharge summary written for %s → %s", summary.patient_id, html_path.name)
-    return artefacts
+    return artifacts
 
 
 # --------------------------------------------------------------------------- #
@@ -378,7 +378,7 @@ def _summary_pdf_lines(summary: DischargeSummary) -> list[tuple[str, str]]:
         ]
 
     #  The LangFuse trace id is deliberately NOT printed on the discharge
-    #  summary: this artefact goes home with the patient and an internal
+    #  summary: this artifact goes home with the patient and an internal
     #  observability id has no meaning to them. Tracing itself is untouched —
     #  `summary.trace_id` still populates every LangFuse span, and the reviewer
     #  can still open the trace from the dashboard's trace link.

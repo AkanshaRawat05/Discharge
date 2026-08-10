@@ -470,7 +470,7 @@ async def handle(payload: dict[str, Any], ctx: Any) -> AsyncIterator[Any]:
 
             #  Toxicity is filtered on everything the patient sees.
             #  PII redaction is intentionally NOT applied to the summary body:
-            #  this artefact IS the patient's own take-home document, so
+            #  this artifact IS the patient's own take-home document, so
             #  masking their own name / phone / address on it would defeat its
             #  purpose. PDF Table 12 scopes PII/PHI redaction to external LLM
             #  calls and logs (already applied via `manager.redact(..., purpose=
@@ -492,14 +492,14 @@ async def handle(payload: dict[str, Any], ctx: Any) -> AsyncIterator[Any]:
         text=f"## When to get help urgently\n{warning_text}\n", section="warning_signs"
     )
 
-    # ---- write the artefacts ----------------------------------------------
+    # ---- write the artifacts ----------------------------------------------
     summary.guardrail_events = list(manager.events)
-    artefacts: dict[str, str] = {}
-    async with audit.step("write_summary_artefacts", "report_builder",
+    artifacts: dict[str, str] = {}
+    async with audit.step("write_summary_artifacts", "report_builder",
                           framework=FRAMEWORK):
         from ..reporting import build_summary_reports
 
-        artefacts = build_summary_reports(summary, write_files=True, pdf=True)
+        artifacts = build_summary_reports(summary, write_files=True, pdf=True)
 
     yield StreamEvent(
         data={
@@ -515,7 +515,7 @@ async def handle(payload: dict[str, Any], ctx: Any) -> AsyncIterator[Any]:
             "audience": audience,
             "summary": summary.model_dump(mode="json"),
             "markdown": summary.as_markdown(),
-            "artefacts": artefacts,
+            "artifacts": artifacts,
             "sections": [section.key for section in summary.sections],
             "guardrail_events": [e.model_dump(mode="json") for e in manager.events],
             "audit_trail": audit.dump(),

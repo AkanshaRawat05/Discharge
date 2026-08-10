@@ -44,7 +44,7 @@ class PipelineResult:
     case: ExtractedCase | None = None
     report: ValidationReport | None = None
     summary: DischargeSummary | None = None
-    artefacts: dict[str, str] = field(default_factory=dict)
+    artifacts: dict[str, str] = field(default_factory=dict)
     stages: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     agents_used: list[str] = field(default_factory=list)
@@ -85,7 +85,7 @@ class PipelineResult:
             ),
             "hitl_required": self.report.risk.hitl_required if self.report else None,
             "summary_generated": self.summary is not None,
-            "artefacts": self.artefacts,
+            "artifacts": self.artifacts,
             "stages": self.stages,
             "errors": self.errors,
             "agents_used": self.agents_used,
@@ -200,7 +200,7 @@ async def run_pipeline(
         # ---- 3. validate ---------------------------------------------------
         report_progress("validate", "Clinical Validation Agent (LangGraph :8101)…")
         try:
-            report, artefacts = await runner.validate(
+            report, artifacts = await runner.validate(
                 patient_id,
                 normalised,
                 elicitation_answers=elicitation_answers,
@@ -214,7 +214,7 @@ async def run_pipeline(
             return result
 
         result.report = report
-        result.artefacts.update(artefacts)
+        result.artifacts.update(artifacts)
         report_progress(
             "validate",
             f"risk {report.risk.level.value} (score {report.risk.score}), "
@@ -235,11 +235,11 @@ async def run_pipeline(
                     "summarise", "Discharge Summary Generator (ADK :8104, streaming)…"
                 )
                 try:
-                    summary, summary_artefacts = await runner.summarise(
+                    summary, summary_artifacts = await runner.summarise(
                         patient_id, normalised, report, force=force_summary
                     )
                     result.summary = summary
-                    result.artefacts.update(summary_artefacts)
+                    result.artifacts.update(summary_artifacts)
                     report_progress(
                         "summarise",
                         f"generated {len(summary.sections) if summary else 0} section(s)",
@@ -323,7 +323,7 @@ class _LocalRunner:
         )
         return (
             ValidationReport.model_validate(payload["report"]),
-            payload.get("artefacts", {}) or {},
+            payload.get("artifacts", {}) or {},
         )
 
     async def summarise(
@@ -350,7 +350,7 @@ class _LocalRunner:
             return None, {}
         return (
             DischargeSummary.model_validate(final["summary"]),
-            final.get("artefacts", {}) or {},
+            final.get("artifacts", {}) or {},
         )
 
 
@@ -417,7 +417,7 @@ class _A2ARunner:
         )
         return (
             ValidationReport.model_validate(data["report"]),
-            data.get("artefacts", {}) or {},
+            data.get("artifacts", {}) or {},
         )
 
     async def summarise(
@@ -441,7 +441,7 @@ class _A2ARunner:
             return None, {}
         return (
             DischargeSummary.model_validate(final["summary"]),
-            final.get("artefacts", {}) or {},
+            final.get("artifacts", {}) or {},
         )
 
 

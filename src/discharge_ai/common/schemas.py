@@ -278,7 +278,7 @@ class AuditTrailEntry(BaseModel):
 
 
 class ValidationReport(BaseModel):
-    """The JSON artefact consumed by the dashboard, HTML/PDF renderer and RAG."""
+    """The JSON artifact consumed by the dashboard, HTML/PDF renderer and RAG."""
 
     model_config = ConfigDict(extra="allow")
 

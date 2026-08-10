@@ -71,7 +71,7 @@ class ValidatorState(TypedDict, total=False):
     explanations: dict[str, Any]
     risk: dict[str, Any]
     analytics: dict[str, Any]
-    artefacts: dict[str, str]
+    artifacts: dict[str, str]
     notes: list[str]
 
 
@@ -346,10 +346,10 @@ def _build_graph(mcp: Any, audit: AuditTrail, manager: Any):
         }
 
     async def report(state: ValidatorState) -> ValidatorState:
-        """MCP Tool: clinical_insight_reporter → JSON + HTML artefacts."""
+        """MCP Tool: clinical_insight_reporter → JSON + HTML artifacts."""
         validation_report = _assemble_report(state, audit, manager)
 
-        artefacts: dict[str, str] = {}
+        artifacts: dict[str, str] = {}
         async with audit.step("generate_audit_report",
                               "clinical_insight_reporter tool", framework=FRAMEWORK):
             if mcp.is_connected:
@@ -362,18 +362,18 @@ def _build_graph(mcp: Any, audit: AuditTrail, manager: Any):
                             "write_files": True,
                         },
                     )
-                    artefacts = (result or {}).get("artefacts", {})
+                    artifacts = (result or {}).get("artifacts", {})
                 except Exception as exc:  # noqa: BLE001
                     log.warning("Reporter tool failed: %s", exc)
 
-            if not artefacts:
+            if not artifacts:
                 from ..reporting import build_reports
 
-                artefacts = build_reports(validation_report, write_files=True)
+                artifacts = build_reports(validation_report, write_files=True)
 
         return {
-            "artefacts": artefacts,
-            "notes": [f"audit report written: {', '.join(sorted(artefacts))}"],
+            "artifacts": artifacts,
+            "notes": [f"audit report written: {', '.join(sorted(artifacts))}"],
         }
 
     graph = StateGraph(ValidatorState)
@@ -555,7 +555,7 @@ async def handle(payload: dict[str, Any], ctx: Any) -> dict[str, Any]:
         "trace_url": tracing.trace_url(trace_id),
         "report": report.model_dump(mode="json"),
         "case": validated_case.model_dump(mode="json"),
-        "artefacts": final_state.get("artefacts", {}),
+        "artifacts": final_state.get("artifacts", {}),
         "risk_level": report.risk.level.value,
         "risk_score": report.risk.score,
         "recommendation": report.risk.recommendation.value,

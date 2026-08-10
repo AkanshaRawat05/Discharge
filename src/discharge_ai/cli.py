@@ -165,7 +165,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"      [{finding.severity.value:8}] {finding.rule_id}: "
                   f"{finding.message[:88]}")
         print(f"    summary generated: {result.summary is not None}")
-        print(f"    artefacts: {', '.join(sorted(result.artefacts)) or 'none'}")
+        print(f"    artifacts: {', '.join(sorted(result.artifacts)) or 'none'}")
         if result.trace_url:
             print(f"    trace: {result.trace_url}")
         if result.errors:

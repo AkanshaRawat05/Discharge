@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import (  # noqa: E402
     PALETTE,
-    artefact_downloads,
+    artifact_downloads,
     english_drug_name,
     flow_state,
     get_case,
@@ -158,8 +158,8 @@ if generate:
 
         summary = DischargeSummary.model_validate(final_payload["summary"])
         st.session_state["summaries"][patient_id] = summary
-        st.session_state["artefacts"].setdefault(patient_id, {}).update(
-            final_payload.get("artefacts", {})
+        st.session_state["artifacts"].setdefault(patient_id, {}).update(
+            final_payload.get("artifacts", {})
         )
         state["summary_ready"] = True
         st.success(
@@ -302,7 +302,7 @@ st.divider()
 #  LangFuse guardrail spans. They are simply not shown to the reviewer here;
 #  guardrail activity remains visible on 2 · Validation Report for audit.
 st.subheader("Export")
-artefact_downloads(patient_id)
+artifact_downloads(patient_id)
 
 extra = st.columns(2)
 with extra[0]:
@@ -323,4 +323,4 @@ with extra[1]:
     )
 
 trace_link(summary.trace_id or report.trace_id)
-st.caption(f"Artefacts live in `{settings.path('reports_dir')}`.")
+st.caption(f"Artifacts live in `{settings.path('reports_dir')}`.")

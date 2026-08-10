@@ -805,13 +805,13 @@ async def clinical_insight_reporter(
 
         #  The HTML renderer reads its template through the same content the
         #  Resources primitive serves, keeping one source of truth.
-        artefacts = build_reports(validation_report, write_files=write_files)
-        span.set_output({key: str(value) for key, value in artefacts.items()})
+        artifacts = build_reports(validation_report, write_files=write_files)
+        span.set_output({key: str(value) for key, value in artifacts.items()})
         return {
             "patient_id": validation_report.patient_id,
             "risk_level": validation_report.risk.level.value,
             "recommendation": validation_report.risk.recommendation.value,
-            "artefacts": {key: str(value) for key, value in artefacts.items()},
+            "artifacts": {key: str(value) for key, value in artifacts.items()},
             "template_resource": "resource://report-template/html",
             "rules_version": validation_report.rules_version or rules_version(),
         }

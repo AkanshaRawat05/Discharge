@@ -312,7 +312,7 @@ def init_state() -> None:
         "cases": {},              # patient_id -> ExtractedCase
         "reports": {},            # patient_id -> ValidationReport
         "summaries": {},          # patient_id -> DischargeSummary
-        "artefacts": {},          # patient_id -> {kind: path}
+        "artifacts": {},          # patient_id -> {kind: path}
         "pipeline_runs": {},      # patient_id -> result dict
         "feedback": {},           # patient_id -> reviewer decisions
         "flow": {},               # patient_id -> flow state (see flow_state)
@@ -596,11 +596,21 @@ def patient_selector() -> str | None:
     if not patients:
         st.error(
             f"No patient documents found under `{settings.path('input_root')}`. "
-            "Add discharge/lab/bill files named with a patient id (e.g. `P1019_…`)."
+            "Add discharge/lab/bill files named with a patient id (e.g. `P1019_…`), "
+            "or upload them on **1 · Document Viewer**."
         )
         return None
 
     current = st.session_state.get("patient_id")
+
+    #  A freshly uploaded patient asks to be selected through this key rather
+    #  than writing `global_patient_selector` itself: Streamlit forbids writing
+    #  a widget's key after that widget has rendered, and the uploader runs on
+    #  the page, i.e. after the sidebar.
+    pending = st.session_state.pop("pending_patient_id", None)
+    if pending in patients:
+        st.session_state["global_patient_selector"] = pending
+
     index = patients.index(current) if current in patients else 0
     chosen = st.sidebar.selectbox(
         "Patient", patients, index=index, key="global_patient_selector"
@@ -841,8 +851,8 @@ def store_pipeline_result(result: Any) -> None:
         st.session_state["reports"][patient_id] = result.report
     if result.summary is not None:
         st.session_state["summaries"][patient_id] = result.summary
-    if result.artefacts:
-        st.session_state["artefacts"].setdefault(patient_id, {}).update(result.artefacts)
+    if result.artifacts:
+        st.session_state["artifacts"].setdefault(patient_id, {}).update(result.artifacts)
 
     #  Advance the flow so the navigation reflects what actually happened. This
     #  is the one place a sign-off is revoked: the findings just changed under
@@ -1375,8 +1385,8 @@ def audit_trail_table(report: ValidationReport) -> None:
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
-def artefact_downloads(patient_id: str) -> None:
-    """Download buttons for every generated artefact of this patient."""
+def artifact_downloads(patient_id: str) -> None:
+    """Download buttons for every generated artifact of this patient."""
     directory = settings.path("reports_dir")
     candidates = [
         ("Audit report (JSON)", f"{patient_id}_audit.json", "application/json"),
@@ -1390,7 +1400,7 @@ def artefact_downloads(patient_id: str) -> None:
     existing = [(label, directory / name, mime) for label, name, mime in candidates
                 if (directory / name).exists()]
     if not existing:
-        st.caption("No artefacts have been generated yet — run the pipeline first.")
+        st.caption("No artifacts have been generated yet — run the pipeline first.")
         return
 
     columns = st.columns(min(3, len(existing)))

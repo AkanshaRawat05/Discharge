@@ -107,7 +107,7 @@ Verify the environment at any time:
 | **Python 3.11+** | Tested on 3.12. `python --version` |
 | **~2 GB disk** | For the virtualenv (frameworks + FAISS) |
 | **AWS credentials** | Any credential the AWS SDK can resolve: `aws configure`, `AWS_PROFILE`, environment variables, or an IAM role. |
-| **AWS Bedrock model access** | Enable *Amazon Nova Lite*, *Cohere Command R+* and *Titan Text Embeddings V2* in the Bedrock console → **Model access** — see [§8](#8-amazon-bedrock-configuration) |
+| **AWS Bedrock model access** | Enable *Amazon Nova Lite* and *Cohere Command R+* in the Bedrock console → **Model access** (plus *Titan Text Embeddings V2* if you set `EMBEDDING_PROVIDER=bedrock`) — see [§8](#8-amazon-bedrock-configuration) |
 | **A LangFuse account** *(optional)* | Free cloud tier — https://cloud.langfuse.com. Leave the keys blank to run without tracing. |
 | **Tesseract OCR** *(optional)* | Only for **new** scans. Every scanned sample here ships a pre-extracted `.ocr.txt` sidecar. |
 
@@ -154,14 +154,17 @@ Gradio and FastAPI.
 
 ### 4.3 Optional extras
 
-Local sentence-transformer embeddings (the spec's `all-MiniLM-L6-v2`) and OCR:
+Live OCR for brand-new scans (every scanned sample in `Data/incoming` already
+ships a `.ocr.txt` sidecar, so this is only needed for documents you add):
 
 ```bash
 .venv\Scripts\python -m pip install -r requirements-optional.txt
 ```
 
-> `sentence-transformers` pulls PyTorch (~2.5 GB). The system works without it —
-> see `EMBEDDING_PROVIDER` in [§5](#5-configuration-env).
+> `requirements.txt` includes `sentence-transformers` (the spec's
+> `all-MiniLM-L6-v2` embeddings), which pulls PyTorch — ~2.5 GB. If that install
+> is not viable, set `EMBEDDING_PROVIDER=bedrock` or `=hashing` in `.env`; see
+> [§5](#5-configuration-env).
 
 ### 4.4 Create your `.env`
 
@@ -211,7 +214,7 @@ BEDROCK_FALLBACK_MODEL_ID=cohere.command-r-plus-v1:0
 BEDROCK_EMBEDDING_MODEL_ID=amazon.titan-embed-text-v2:0
 
 # --- Embeddings -----------------------------------------------------------
-EMBEDDING_PROVIDER=bedrock       # bedrock | sentence_transformers | hashing
+EMBEDDING_PROVIDER=sentence_transformers   # sentence_transformers | bedrock | hashing
 
 # --- LangFuse (blank = tracing disabled, everything still works) ----------
 LANGFUSE_SECRET_KEY=sk-lf-...
@@ -238,8 +241,8 @@ follows whatever `BEDROCK_MODEL_ID` says; nothing else needs to change.
 
 | Value | Behaviour |
 | --- | --- |
-| `bedrock` *(default)* | `amazon.titan-embed-text-v2:0` over the Bedrock runtime. Same credentials as the chat models, no heavy dependency. |
-| `sentence_transformers` | The spec's `all-MiniLM-L6-v2`, fully local. Needs `requirements-optional.txt`. |
+| `sentence_transformers` *(default)* | The spec's `sentence-transformers/all-MiniLM-L6-v2`, fully local. Installed by `requirements.txt`; the model itself downloads (~90 MB) on first use. |
+| `bedrock` | `amazon.titan-embed-text-v2:0` over the Bedrock runtime. Same credentials as the chat models, no PyTorch dependency. |
 | `hashing` | Deterministic offline hashing embeddings. Zero dependencies, no network. |
 
 Any provider that fails at runtime falls back to `hashing` with a warning, so
@@ -411,7 +414,7 @@ default model. Everything vendor-specific lives in one file:
 | LangGraph agents (Extractor, Validator, Normalizer) | `ChatBedrockConverse` (`langchain-aws`) |
 | ADK agents (Monitor, Summary Generator, Host Orchestrator) | `LiteLlm(model="bedrock/<id>")` |
 | Agno RAG agent | `AwsBedrock` (`agno.models.aws`) |
-| Embeddings | `bedrock-runtime` `invoke_model` on Titan Text Embeddings V2 |
+| Embeddings | Local `sentence-transformers/all-MiniLM-L6-v2` by default; `bedrock-runtime` `invoke_model` on Titan Text Embeddings V2 when `EMBEDDING_PROVIDER=bedrock` |
 
 ### Step 1 — credentials
 
@@ -568,7 +571,7 @@ health probe at `GET /health`. All non-discovery A2A routes require the
 Ai_Discharge_Summary/
 ├── README.md                      ← you are here
 ├── requirements.txt               core dependencies (with the two deliberate pins)
-├── requirements-optional.txt      sentence-transformers, pytesseract
+├── requirements-optional.txt      pytesseract (live OCR)
 ├── run_services.py                one-command launcher for all 11 services
 ├── .env / .env.example            secrets + the LLM_PROVIDER switch
 │
@@ -607,7 +610,7 @@ Ai_Discharge_Summary/
     │
     ├── llm/
     │   ├── provider.py            ★ THE ONLY VENDOR-AWARE FILE (Amazon Bedrock)
-    │   └── embeddings.py          bedrock | sentence_transformers | hashing
+    │   └── embeddings.py          sentence_transformers | bedrock | hashing
     │
     ├── common/
     │   ├── schemas.py             pydantic contracts shared by every agent
@@ -1054,7 +1057,7 @@ differ from a literal reading, each for a concrete reason:
 | Spec says | What was built | Why |
 | --- | --- | --- |
 | `mcp-use` for the multi-server MCP client | A purpose-built multi-server client on the official `mcp` SDK (`mcp_client/client.py`), plus Agno's `MultiMCPTools` for the RAG agent | The client must implement `sampling_callback`, `elicitation_callback` **and** `list_roots_callback` with our own hint-routing and reviewer plumbing. Writing it directly on `ClientSession` is what makes Sampling, Elicitation and Roots genuinely demonstrable, and it holds live sessions to both servers at once as required. |
-| `sentence-transformers/all-MiniLM-L6-v2` embeddings | Configurable: `bedrock` (default, Titan Text Embeddings V2), `sentence_transformers` (the spec model), or `hashing` | PyTorch is a 2.5 GB dependency for a demo. The spec model is one `pip install` and one `.env` line away, and the FAISS index rebuilds itself when the provider changes. |
+| `sentence-transformers/all-MiniLM-L6-v2` embeddings | Exactly that, as the default (`EMBEDDING_PROVIDER=sentence_transformers`), with `bedrock` (Titan Text Embeddings V2) and `hashing` as opt-in alternatives | Implemented as specified. The alternatives exist because PyTorch is a 2.5 GB install; switching is one `.env` line and the FAISS index rebuilds itself when the provider changes. |
 | Tesseract OCR for scanned documents | Pre-extracted `.ocr.txt` sidecars preferred; live Tesseract used only when no sidecar exists | The sidecars are what the dataset ships, they are what a real scanning pipeline produces, and they keep the demo reproducible on a machine without the Tesseract binary. |
 
 Two design decisions worth flagging because they are not obvious from the spec:

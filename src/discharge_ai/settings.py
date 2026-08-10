@@ -105,7 +105,12 @@ class Settings:
         )
 
         # ---------------- embeddings -----------------------------------------
-        self.embedding_provider: str = _env("EMBEDDING_PROVIDER", "bedrock").lower()
+        #  The specification names sentence-transformers/all-MiniLM-L6-v2 as the
+        #  embedding model, so that is the default; `bedrock` and `hashing`
+        #  remain available for machines that cannot carry the PyTorch download.
+        self.embedding_provider: str = _env(
+            "EMBEDDING_PROVIDER", "sentence_transformers"
+        ).lower()
         self.sentence_transformer_model: str = _env(
             "SENTENCE_TRANSFORMER_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
         )

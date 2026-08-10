@@ -246,8 +246,8 @@ def build_ui():  # noqa: ANN201
         ]
         if payload.get("trace_url"):
             verdict.append(f"[Open the LangFuse trace]({payload['trace_url']})")
-        if payload["artefacts"]:
-            verdict.append("**Artefacts:** " + ", ".join(sorted(payload["artefacts"])))
+        if payload["artifacts"]:
+            verdict.append("**Artifacts:** " + ", ".join(sorted(payload["artifacts"])))
         if payload["errors"]:
             verdict.append("**Issues:** " + "; ".join(payload["errors"]))
 

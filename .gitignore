@@ -1,6 +1,6 @@
 # --- secrets -----------------------------------------------------------------
 .env
-
+.claude
 # --- python ------------------------------------------------------------------
 __pycache__/
 *.py[cod]
@@ -9,7 +9,7 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# --- generated runtime artefacts ---------------------------------------------
+# --- generated runtime artifacts ---------------------------------------------
 Data/reports/
 Data/vector_db/
 Data/feedback/
