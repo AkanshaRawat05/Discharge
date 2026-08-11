@@ -27,9 +27,25 @@ REJECT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         r"(instruction|prompt|rule|guardrail|direction|constraint)s?\b",
         re.IGNORECASE)),
     ("prompt_exfiltration", re.compile(
-        r"\b(reveal|show|print|repeat|output|dump|tell\s+me)\b[^.\n]{0,30}\b"
+        r"\b(reveal|show|print|repeat|output|dump|give|share|send|provide|"
+        r"display|echo|expose|leak|divulge|paste|recite|tell\s+me|"
+        r"what\s+(is|are|was|were)|list)\b[^.\n]{0,30}\b"
         r"(your\s+)?(system\s+prompt|initial\s+instructions|hidden\s+rules|"
         r"prompt\s+template|api\s+key|secret|credential|token)\b",
+        re.IGNORECASE)),
+    #  The verb-led pattern above misses the phrasings people actually use —
+    #  "what is your system prompt", "your system prompt?", "system prompt pls".
+    #  These target nouns have no legitimate meaning on a clinical Q&A surface,
+    #  so naming one at all is the signal; no verb is required.
+    #
+    #  `instructions` is deliberately NOT matched on its own: "discharge
+    #  instructions" is core clinical vocabulary. Only the assistant-directed
+    #  forms are, and the lookahead keeps "your discharge instructions" clear.
+    ("prompt_disclosure", re.compile(
+        r"\b(system\s+prompt|prompt\s+template|initial\s+instructions|"
+        r"system\s+instructions|hidden\s+(rules|instructions)|"
+        r"your\s+(?!discharge|patient|medication|care|follow|lab|clinical)"
+        r"(instructions|prompt|guardrails?|system\s+rules))\b",
         re.IGNORECASE)),
     ("role_hijack", re.compile(
         r"\b(you\s+are\s+now|act\s+as|pretend\s+to\s+be|from\s+now\s+on\s+you|"

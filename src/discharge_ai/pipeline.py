@@ -142,6 +142,41 @@ async def run_pipeline(
     with tracing.chain_span(
         f"pipeline:{patient_id}", trace_id=trace_id, input={"mode": mode}
     ) as span:
+        # ---- 0. monitor -----------------------------------------------------
+        #  MCP Roots pre-flight (PDF §2.1): the Discharge Monitor Agent asks the
+        #  Clinical Watcher tool which documents the authorised workspace holds,
+        #  so the scan and its Roots discovery land on this case's trace.
+        #
+        #  Advisory only — completeness validation is what gates a discharge —
+        #  so a failure here degrades to a note and the run carries on. Skipped
+        #  on the HITL re-run, which deliberately never re-reads the workspace.
+        if initial_case is None:
+            report_progress("monitor", "Discharge Monitor Agent (ADK :8103)…")
+            try:
+                scan = await runner.monitor(patient_id)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Monitor scan failed for %s: %s", patient_id, exc)
+                report_progress("monitor", f"degraded: {type(exc).__name__}: {exc}")
+            else:
+                held = (scan.get("patients") or {}).get(patient_id, {})
+                missing = next(
+                    (
+                        entry.get("missing", [])
+                        for entry in scan.get("incomplete_cases", []) or []
+                        if entry.get("patient_id") == patient_id
+                    ),
+                    [],
+                )
+                report_progress(
+                    "monitor",
+                    f"workspace scan found {len(held)} document type(s)"
+                    + (
+                        f" — missing {', '.join(missing)}"
+                        if missing
+                        else " — complete set, ready for processing"
+                    ),
+                )
+
         # ---- 1. extract ----------------------------------------------------
         if initial_case is not None:
             #  HITL round-trip: use the reviewer's edited case verbatim — do NOT
@@ -273,6 +308,7 @@ class _LocalRunner:
     """Invoke the agent handlers directly, in this process."""
 
     agent_labels = [
+        "Discharge Monitor Agent (ADK, in-process)",
         "Clinical Extractor Agent (LangGraph, in-process)",
         "Clinical Normalizer Agent (LangGraph, in-process)",
         "Clinical Validation Agent (LangGraph, in-process)",
@@ -284,6 +320,18 @@ class _LocalRunner:
         from types import SimpleNamespace
 
         self.ctx = SimpleNamespace(trace_id=trace_id)
+
+    async def monitor(self, patient_id: str) -> dict[str, Any]:
+        from .agents import monitor_agent
+
+        #  `narrate=False`: the ADK narration is an extra LLM call whose prose
+        #  nothing downstream reads. The Roots-scoped Clinical Watcher call —
+        #  the part worth tracing — happens either way. Flip to True to put the
+        #  ADK LlmAgent generation on the trace as well.
+        return await monitor_agent.handle(
+            {"patient_id": patient_id, "trace_id": self.trace_id, "narrate": False},
+            self.ctx,
+        )
 
     async def extract(self, patient_id: str, use_llm: bool) -> ExtractedCase:
         from .agents import extractor_agent
@@ -361,6 +409,7 @@ class _A2ARunner:
     """Call each agent over the A2A Protocol."""
 
     agent_labels = [
+        "Discharge Monitor Agent (A2A :8103)",
         "Clinical Extractor Agent (A2A :8100)",
         "Clinical Normalizer Agent (A2A :8102)",
         "Clinical Validation Agent (A2A :8101)",
@@ -381,6 +430,15 @@ class _A2ARunner:
                 f"running? Start it with: python run_services.py --only {agent_key}"
             )
         return result.data
+
+    async def monitor(self, patient_id: str) -> dict[str, Any]:
+        #  See `_LocalRunner.monitor` for why narration is off by default.
+        return self._require(
+            await self.client.send(
+                "monitor", {"patient_id": patient_id, "narrate": False}
+            ),
+            "monitor",
+        )
 
     async def extract(self, patient_id: str, use_llm: bool) -> ExtractedCase:
         data = self._require(
